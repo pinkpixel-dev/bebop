@@ -38,6 +38,9 @@ pub enum HitAction {
     SearchSelect(usize),
     SearchClose,
     SeekLyric(Duration),
+    OpenDevices,
+    DeviceSelect(usize),
+    DeviceClose,
 }
 
 pub struct PlayerView;
@@ -372,10 +375,20 @@ impl PlayerView {
             "Audio Engine Ready".to_string()
         };
 
+        let device_badge = player
+            .device_name
+            .as_deref()
+            .unwrap_or("Default Audio");
+
         let repeat_str = player.repeat.label();
         let shuffle_str = if player.shuffle { "Shuffle On" } else { "Shuffle Off" };
 
-        let left_line = Line::from(Span::styled(format!("  {}", tech_details), Style::default().fg(theme.text_dim)));
+        let left_line = Line::from(vec![
+            Span::styled(format!("  {}", tech_details), Style::default().fg(theme.text_dim)),
+            Span::styled("  │  ", Style::default().fg(theme.border)),
+            Span::styled(format!("🎧 {} ", device_badge), Style::default().fg(theme.accent)),
+            Span::styled("[O]", Style::default().fg(theme.text_muted)),
+        ]);
         let right_line = Line::from(vec![
             Span::styled(format!("{}    ", repeat_str), Style::default().fg(theme.text_muted)),
             Span::styled(format!("{}  ", shuffle_str), Style::default().fg(theme.text_muted)),
@@ -383,6 +396,17 @@ impl PlayerView {
 
         frame.render_widget(Paragraph::new(left_line).alignment(Alignment::Left), inner);
         frame.render_widget(Paragraph::new(right_line).alignment(Alignment::Right), inner);
+
+        // Register hit zone for device selector click
+        let dev_badge_str = format!("🎧 {} [O]", device_badge);
+        let dev_badge_len = dev_badge_str.chars().count() as u16;
+        let dev_start_x = inner.left() + 2 + tech_details.chars().count() as u16 + 5;
+        if dev_start_x + dev_badge_len < inner.right().saturating_sub(30) {
+            hit_zones.push(HitZone {
+                rect: Rect::new(dev_start_x, inner.top(), dev_badge_len, 1),
+                action: HitAction::OpenDevices,
+            });
+        }
 
         // Register hit zones for repeat and shuffle clicks
         if inner.width > 30 {

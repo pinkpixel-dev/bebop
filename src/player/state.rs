@@ -37,6 +37,7 @@ pub struct PlayerState {
     pub muted: bool,
     pub repeat: RepeatMode,
     pub shuffle: bool,
+    pub device_name: Option<String>,
 }
 
 impl Default for PlayerState {
@@ -50,6 +51,7 @@ impl Default for PlayerState {
             muted: false,
             repeat: RepeatMode::All,
             shuffle: false,
+            device_name: None,
         }
     }
 }

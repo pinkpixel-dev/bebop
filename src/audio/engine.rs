@@ -32,17 +32,22 @@ struct EngineShared {
 
 pub struct AudioEngine {
     shared: Arc<EngineShared>,
-    _output: Option<AudioOutput>,
+    output: Option<AudioOutput>,
     analyzer: AudioAnalyzer,
     output_controls: Option<Arc<OutputControls>>,
     worker_handle: Option<JoinHandle<()>>,
     worker_stop: Option<Arc<AtomicBool>>,
     running: Arc<AtomicBool>,
     _current_path: Option<PathBuf>,
+    current_device_name: Option<String>,
 }
 
 impl AudioEngine {
     pub fn new() -> Result<Self, anyhow::Error> {
+        Self::new_with_device(None)
+    }
+
+    pub fn new_with_device(preferred_device: Option<&str>) -> Result<Self, anyhow::Error> {
         let shared = Arc::new(EngineShared {
             ring_buffer: Mutex::new(VecDeque::with_capacity(96000)),
             analysis_samples: Mutex::new(Vec::with_capacity(4096)),
@@ -60,7 +65,7 @@ impl AudioEngine {
         let sample_rate = 44100;
 
         // CPAL output pulling samples from shared ring buffer
-        let output = AudioOutput::new(sample_rate, move |out: &mut [f32]| {
+        let output = AudioOutput::new(sample_rate, preferred_device, move |out: &mut [f32]| {
             let mut ring = shared_output.ring_buffer.lock().unwrap();
             let mut analysis = shared_output.analysis_samples.lock().unwrap();
 
@@ -80,20 +85,79 @@ impl AudioEngine {
             }
         }).ok();
 
+        let current_device_name = output.as_ref().map(|o| o.device_name.clone());
         let output_controls = output.as_ref().map(|o| Arc::clone(&o.controls));
         let analyzer = AudioAnalyzer::new(sample_rate, 64);
         let running = Arc::new(AtomicBool::new(true));
 
         Ok(Self {
             shared,
-            _output: output,
+            output,
             analyzer,
             output_controls,
             worker_handle: None,
             worker_stop: None,
             running,
             _current_path: None,
+            current_device_name,
         })
+    }
+
+    /// Switch active audio output device at runtime without stopping decoder.
+    pub fn switch_device(&mut self, device_name: Option<&str>) -> Result<(), anyhow::Error> {
+        let vol = self.volume();
+        let is_muted = self.is_muted();
+        let is_paused = self.state() == PlaybackState::Paused;
+
+        // Drop existing output stream
+        self.output = None;
+        self.output_controls = None;
+
+        let shared_output = Arc::clone(&self.shared);
+        let sample_rate = 44100;
+
+        let new_output = AudioOutput::new(sample_rate, device_name, move |out: &mut [f32]| {
+            let mut ring = shared_output.ring_buffer.lock().unwrap();
+            let mut analysis = shared_output.analysis_samples.lock().unwrap();
+
+            let to_read = out.len().min(ring.len());
+            for i in 0..to_read {
+                let sample = ring.pop_front().unwrap_or(0.0);
+                out[i] = sample;
+                if analysis.len() >= 4096 {
+                    analysis.remove(0);
+                }
+                analysis.push(sample);
+            }
+
+            if to_read < out.len() {
+                out[to_read..].fill(0.0);
+            }
+        })?;
+
+        new_output.controls.set_volume(vol);
+        if is_muted {
+            new_output.controls.muted.store(true, Ordering::Relaxed);
+        }
+        if is_paused {
+            new_output.controls.set_paused(true);
+        }
+
+        self.current_device_name = Some(new_output.device_name.clone());
+        self.output_controls = Some(Arc::clone(&new_output.controls));
+        self.output = Some(new_output);
+
+        Ok(())
+    }
+
+    /// List all output devices reported by the host audio subsystem.
+    pub fn available_devices(&self) -> Vec<crate::audio::output::AudioDeviceInfo> {
+        crate::audio::output::list_output_devices(self.current_device_name.as_deref())
+    }
+
+    /// Current active output device name, if any.
+    pub fn current_device_name(&self) -> Option<String> {
+        self.current_device_name.clone()
     }
 
     fn stop_worker(&mut self) {

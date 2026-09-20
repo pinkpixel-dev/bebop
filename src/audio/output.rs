@@ -48,25 +48,85 @@ impl OutputControls {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AudioDeviceInfo {
+    pub name: String,
+    pub is_default: bool,
+    pub is_active: bool,
+}
+
+/// Enumerate all available audio output devices from the host.
+pub fn list_output_devices(active_device: Option<&str>) -> Vec<AudioDeviceInfo> {
+    let host = cpal::default_host();
+    let default_name = host.default_output_device().and_then(|d| d.name().ok());
+
+    let mut devices = Vec::new();
+    if let Ok(dev_iter) = host.output_devices() {
+        for dev in dev_iter {
+            if let Ok(name) = dev.name() {
+                let is_default = default_name.as_deref() == Some(&name);
+                let is_active = match active_device {
+                    Some(act) => act == name,
+                    None => is_default,
+                };
+                devices.push(AudioDeviceInfo {
+                    name,
+                    is_default,
+                    is_active,
+                });
+            }
+        }
+    }
+    devices
+}
+
 #[allow(dead_code)]
 pub struct AudioOutput {
     _stream: Stream,
     pub device_sample_rate: u32,
     pub channels: u16,
     pub controls: Arc<OutputControls>,
+    pub device_name: String,
 }
 
 impl AudioOutput {
     /// Initialize CPAL stream with a sample provider callback.
     /// The callback receives `(&mut [f32], volume)` where the callback fills `[L, R, L, R...]`.
-    pub fn new<F>(sample_rate: u32, mut sample_callback: F) -> Result<Self, anyhow::Error>
+    pub fn new<F>(
+        sample_rate: u32,
+        preferred_device: Option<&str>,
+        mut sample_callback: F,
+    ) -> Result<Self, anyhow::Error>
     where
         F: FnMut(&mut [f32]) + Send + 'static,
     {
         let host = cpal::default_host();
-        let device = host
-            .default_output_device()
-            .ok_or_else(|| anyhow::anyhow!("No audio output device found"))?;
+        let (device, dev_name) = if let Some(target) = preferred_device {
+            if let Ok(mut devs) = host.output_devices() {
+                if let Some(d) = devs.find(|d| d.name().map(|n| n == target).unwrap_or(false)) {
+                    let n = d.name().unwrap_or_else(|_| target.to_string());
+                    (d, n)
+                } else {
+                    let d = host
+                        .default_output_device()
+                        .ok_or_else(|| anyhow::anyhow!("No audio output device found"))?;
+                    let n = d.name().unwrap_or_else(|_| "Default".to_string());
+                    (d, n)
+                }
+            } else {
+                let d = host
+                    .default_output_device()
+                    .ok_or_else(|| anyhow::anyhow!("No audio output device found"))?;
+                let n = d.name().unwrap_or_else(|_| "Default".to_string());
+                (d, n)
+            }
+        } else {
+            let d = host
+                .default_output_device()
+                .ok_or_else(|| anyhow::anyhow!("No audio output device found"))?;
+            let n = d.name().unwrap_or_else(|_| "Default".to_string());
+            (d, n)
+        };
 
         let _supported_configs_range = device.supported_output_configs()?;
         let supported_config = device
@@ -175,6 +235,7 @@ impl AudioOutput {
             device_sample_rate: stream_config.sample_rate.0,
             channels: stream_config.channels,
             controls,
+            device_name: dev_name,
         })
     }
 }

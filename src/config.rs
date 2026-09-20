@@ -17,6 +17,8 @@ pub struct PlayerConfig {
     pub volume: f32,
     pub repeat: String,
     pub shuffle: bool,
+    #[serde(default)]
+    pub device: Option<String>,
 }
 
 impl Default for PlayerConfig {
@@ -25,6 +27,7 @@ impl Default for PlayerConfig {
             volume: 0.8,
             repeat: "all".to_string(),
             shuffle: false,
+            device: None,
         }
     }
 }

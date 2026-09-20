@@ -28,5 +28,13 @@ All notable changes to Auri are documented in this file.
 - Add configuration toggle `mpris = true/false` under `[ui]` in `config.toml`.
 - Gracefully detect headless servers, SSH sessions, and environments without D-Bus.
 
+### 🎧 Audio Output Device Selector
+- Add interactive modal overlay for audio output device selection accessible via `o` / `O` or tapping the status bar audio badge.
+- Enumerate host audio output endpoints through CPAL, marking the system default and active device.
+- Hot-swap CPAL output streams at runtime while keeping the background decoder thread, PCM ring buffer, volume, and playback state uninterrupted.
+- Persist preferred device name in `config.toml` under `[player.device]`.
+- Provide touch and mouse hit zone support for direct device selection and tap-to-open.
+- Automatically fall back to the system default device if a preferred device is unplugged or unavailable.
+
 ### 🏷️ Versioning
 - Bump project version to 0.2.0.

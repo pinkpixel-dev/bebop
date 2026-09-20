@@ -15,7 +15,7 @@ use crate::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use crate::terminal::{KittyRenderer, TerminalDetector, TerminalGraphics};
 use crate::theme::{extract_palette, ExtractedPalette, Theme};
 use crate::ui::player::{HitAction, HitZone, PlayerView};
-use crate::ui::{AppLayout, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, LyricsView, QueueState, QueueView, SearchOverlay};
+use crate::ui::{AppLayout, DeviceOverlay, DeviceState, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, LyricsView, QueueState, QueueView, SearchOverlay};
 use crate::visualizers::bars::BarsVisualizer;
 use crate::visualizers::mirrored::MirroredBarsVisualizer;
 use crate::visualizers::particles::ParticlesVisualizer;
@@ -50,6 +50,7 @@ pub struct App {
     pub mpris_enabled: bool,
     pub mpris_service: Option<MprisService>,
     pub search_state: SearchState,
+    pub device_state: DeviceState,
     pub should_quit: bool,
     pub terminal_graphics: TerminalGraphics,
     pub artwork_png: Option<Vec<u8>>,
@@ -62,7 +63,7 @@ pub struct App {
 impl App {
     pub fn new() -> Result<Self, anyhow::Error> {
         let config = AppConfig::load();
-        let audio_engine = AudioEngine::new()?;
+        let audio_engine = AudioEngine::new_with_device(config.player.device.as_deref())?;
         audio_engine.set_volume(config.player.volume);
 
         let theme = Theme::from_name(&config.ui.theme);
@@ -93,6 +94,7 @@ impl App {
         player.volume = config.player.volume;
         player.repeat = repeat;
         player.shuffle = config.player.shuffle;
+        player.device_name = audio_engine.current_device_name();
 
         let graphics = TerminalDetector::detect();
         let library_state = LibraryState::new();
@@ -126,6 +128,7 @@ impl App {
             mpris_enabled: config.ui.mpris,
             mpris_service,
             search_state: SearchState::new(),
+            device_state: DeviceState::new(),
             should_quit: false,
             terminal_graphics: graphics,
             artwork_png: None,
@@ -263,6 +266,7 @@ impl App {
         }
         self.player.volume = self.audio_engine.volume();
         self.player.muted = self.audio_engine.is_muted();
+        self.player.device_name = self.audio_engine.current_device_name();
 
         // Drain and process MPRIS D-Bus actions
         let actions: Vec<MprisAction> = if let Some(mpris) = &self.mpris_service {
@@ -468,10 +472,65 @@ impl App {
                 let active_idx = self.lyrics_state.lyrics.as_ref().and_then(|l| l.find_active_index(ts));
                 self.lyrics_state.resume_auto_scroll(active_idx);
             }
+            HitAction::OpenDevices => self.toggle_device_selector(),
+            HitAction::DeviceSelect(idx) => self.select_device_at_index(idx),
+            HitAction::DeviceClose => {
+                self.device_state.close();
+                self.last_art_rendered = None;
+            }
+        }
+    }
+
+    pub fn toggle_device_selector(&mut self) {
+        if self.device_state.is_open {
+            self.device_state.close();
+            self.last_art_rendered = None;
+        } else {
+            let _ = KittyRenderer::clear_all();
+            self.last_art_rendered = None;
+            let devices = self.audio_engine.available_devices();
+            let current = self.audio_engine.current_device_name();
+            self.device_state.open(devices, current.as_deref());
+        }
+    }
+
+    pub fn select_active_device(&mut self) {
+        if let Some(dev) = self.device_state.selected_device().cloned() {
+            let _ = self.audio_engine.switch_device(Some(&dev.name));
+            self.player.device_name = self.audio_engine.current_device_name();
+            self.save_config();
+            self.device_state.close();
+            self.last_art_rendered = None;
+        }
+    }
+
+    pub fn select_device_at_index(&mut self, index: usize) {
+        if let Some(dev) = self.device_state.devices.get(index).cloned() {
+            let _ = self.audio_engine.switch_device(Some(&dev.name));
+            self.player.device_name = self.audio_engine.current_device_name();
+            self.save_config();
+            self.device_state.close();
+            self.last_art_rendered = None;
         }
     }
 
     pub fn on_key(&mut self, key: KeyEvent) {
+        if self.device_state.is_open {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('o') | KeyCode::Char('O') => {
+                    self.device_state.close();
+                    self.last_art_rendered = None;
+                }
+                KeyCode::Enter => {
+                    self.select_active_device();
+                }
+                KeyCode::Up | KeyCode::Char('k') => self.device_state.move_up(),
+                KeyCode::Down | KeyCode::Char('j') => self.device_state.move_down(),
+                _ => {}
+            }
+            return;
+        }
+
         if self.show_help {
             if key.code == KeyCode::Esc || key.code == KeyCode::Char('?') || key.code == KeyCode::Char('q') {
                 self.show_help = false;
@@ -538,6 +597,12 @@ impl App {
             let _ = KittyRenderer::clear_all();
             self.last_art_rendered = None;
             self.search_state.open(pool);
+            return;
+        }
+
+        // Global audio output device selector with 'o' or 'O'
+        if key.code == KeyCode::Char('o') || key.code == KeyCode::Char('O') {
+            self.toggle_device_selector();
             return;
         }
 
@@ -830,7 +895,9 @@ impl App {
                 }
             }
 
-            if self.search_state.is_open {
+            if self.device_state.is_open {
+                DeviceOverlay::render(frame, area, &self.device_state, &self.theme, &mut self.hit_zones);
+            } else if self.search_state.is_open {
                 SearchOverlay::render(frame, area, &self.search_state, &self.theme, &mut self.hit_zones);
             } else if self.show_help {
                 HelpOverlay::render(frame, area, &self.theme);
@@ -838,7 +905,7 @@ impl App {
         })?;
 
         // Render Kitty graphics album artwork only when on Player view
-        if self.active_view == View::Player && !self.fullscreen_visualizer && !self.search_state.is_open && self.show_artwork && self.terminal_graphics == TerminalGraphics::Kitty {
+        if self.active_view == View::Player && !self.fullscreen_visualizer && !self.device_state.is_open && !self.search_state.is_open && self.show_artwork && self.terminal_graphics == TerminalGraphics::Kitty {
             if let (Some(rect), Some(png)) = (art_box_rect, &self.artwork_png) {
                 if self.last_art_rendered != Some(rect) {
                     let _ = KittyRenderer::clear_all();
@@ -860,6 +927,7 @@ impl App {
             RepeatMode::One => "one".to_string(),
         };
         cfg.player.shuffle = self.player.shuffle;
+        cfg.player.device = self.audio_engine.current_device_name();
         cfg.ui.theme = self.theme.name.to_string();
         cfg.ui.artwork = self.show_artwork;
         cfg.ui.notifications = self.notifications_enabled;

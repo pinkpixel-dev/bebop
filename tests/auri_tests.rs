@@ -1100,5 +1100,173 @@ fn test_mpris_state_update() {
     }
 }
 
+#[test]
+fn test_audio_device_info_structure() {
+    use auri::audio::AudioDeviceInfo;
+
+    let dev = AudioDeviceInfo {
+        name: "Headphones (USB Audio)".to_string(),
+        is_default: false,
+        is_active: true,
+    };
+
+    assert_eq!(dev.name, "Headphones (USB Audio)");
+    assert!(!dev.is_default);
+    assert!(dev.is_active);
+
+    let dev_clone = dev.clone();
+    assert_eq!(dev, dev_clone);
+}
+
+#[test]
+fn test_device_state_lifecycle_and_navigation() {
+    use auri::audio::AudioDeviceInfo;
+    use auri::ui::DeviceState;
+
+    let mut state = DeviceState::new();
+    assert!(!state.is_open);
+    assert_eq!(state.selected_index, 0);
+
+    let devices = vec![
+        AudioDeviceInfo {
+            name: "Built-in Speakers".to_string(),
+            is_default: true,
+            is_active: false,
+        },
+        AudioDeviceInfo {
+            name: "USB DAC".to_string(),
+            is_default: false,
+            is_active: true,
+        },
+        AudioDeviceInfo {
+            name: "HDMI Audio".to_string(),
+            is_default: false,
+            is_active: false,
+        },
+    ];
+
+    // Open matching active device
+    state.open(devices.clone(), Some("USB DAC"));
+    assert!(state.is_open);
+    assert_eq!(state.selected_index, 1);
+    assert_eq!(state.selected_device().unwrap().name, "USB DAC");
+
+    // Move down to index 2
+    state.move_down();
+    assert_eq!(state.selected_index, 2);
+    assert_eq!(state.selected_device().unwrap().name, "HDMI Audio");
+
+    // Move down wraps to index 0
+    state.move_down();
+    assert_eq!(state.selected_index, 0);
+    assert_eq!(state.selected_device().unwrap().name, "Built-in Speakers");
+
+    // Move up wraps back to index 2
+    state.move_up();
+    assert_eq!(state.selected_index, 2);
+
+    // Move up to index 1
+    state.move_up();
+    assert_eq!(state.selected_index, 1);
+
+    // Close
+    state.close();
+    assert!(!state.is_open);
+}
+
+#[test]
+fn test_device_config_roundtrip() {
+    use auri::config::AppConfig;
+
+    let toml_str = r#"
+[player]
+volume = 0.85
+repeat = "all"
+shuffle = false
+device = "External Studio Monitor"
+
+[ui]
+theme = "Vercel Dark"
+artwork = true
+visualizer = "bars"
+
+[library]
+paths = []
+"#;
+
+    let cfg: AppConfig = toml::from_str(toml_str).expect("deserialize config with device");
+    assert_eq!(cfg.player.device.as_deref(), Some("External Studio Monitor"));
+
+    // Omitted device defaults to None
+    let toml_default = r#"
+[player]
+volume = 0.8
+repeat = "all"
+shuffle = false
+
+[ui]
+theme = "Vercel Dark"
+artwork = true
+visualizer = "bars"
+"#;
+    let cfg_default: AppConfig = toml::from_str(toml_default).expect("deserialize config default device");
+    assert_eq!(cfg_default.player.device, None);
+
+    // Roundtrip serialization
+    let serialized = toml::to_string(&cfg).expect("serialize config");
+    assert!(serialized.contains("device = \"External Studio Monitor\""));
+}
+
+#[test]
+fn test_device_overlay_rendering() {
+    use auri::audio::AudioDeviceInfo;
+    use auri::theme::Theme;
+    use auri::ui::player::HitAction;
+    use auri::ui::{DeviceOverlay, DeviceState};
+    use ratatui::backend::TestBackend;
+    use ratatui::layout::Rect;
+    use ratatui::Terminal;
+
+    let mut state = DeviceState::new();
+    let devices = vec![
+        AudioDeviceInfo {
+            name: "Built-in Audio".to_string(),
+            is_default: true,
+            is_active: false,
+        },
+        AudioDeviceInfo {
+            name: "USB Headphones".to_string(),
+            is_default: false,
+            is_active: true,
+        },
+    ];
+    state.open(devices, Some("USB Headphones"));
+
+    let theme = Theme::vercel_dark();
+    let backend = TestBackend::new(80, 24);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut hit_zones = Vec::new();
+
+    terminal
+        .draw(|f| {
+            let area = Rect::new(0, 0, 80, 24);
+            DeviceOverlay::render(f, area, &state, &theme, &mut hit_zones);
+        })
+        .unwrap();
+
+    // Verify hit zones were registered for both devices
+    assert!(hit_zones.iter().any(|z| z.action == HitAction::DeviceSelect(0)));
+    assert!(hit_zones.iter().any(|z| z.action == HitAction::DeviceSelect(1)));
+
+    // Verify buffer has output device title
+    let buffer = terminal.backend().buffer();
+    let text: String = (0..24)
+        .flat_map(|y| (0..80).map(move |x| buffer.cell((x, y)).unwrap().symbol().to_string()))
+        .collect();
+    assert!(text.contains("Audio Output Devices"));
+    assert!(text.contains("USB Headphones"));
+}
+
+
 
 

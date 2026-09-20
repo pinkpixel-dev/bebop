@@ -18,6 +18,7 @@ Auri combines real-time spectrum analysis, embedded album artwork via the Kitty 
 - **Synchronized Lyrics:** Reads companion `.lrc` files and embedded lyric tags with real-time center-scrolling and tap-to-seek (`4` or `l`).
 - **Desktop Notifications:** Displays track title, artist, album, and duration on track changes via desktop notifications.
 - **Linux MPRIS / D-Bus Integration:** Control playback with desktop media keys, `playerctl`, GNOME/KDE media widgets, and lock screens.
+- **Audio Output Device Selector:** Press `o` / `O` or tap the device badge to switch audio output devices (headphones, DACs, HDMI) on the fly.
 - **Full-Screen Visualizer Mode:** Press `f` for a focused visualizer experience with a minimal now-playing footer.
 - **Touch & Mouse Support:** Click or tap progress bars to seek, drag volume, tap transport buttons, switch tabs, or cycle visualizers.
 - **Sleek Minimal Aesthetics:** Charcoal dark palette (`#121214`) with crisp typography and vibrant accent palettes.
@@ -80,6 +81,7 @@ auri
 | `m` | - | Toggle mute |
 | `r` | Tap Repeat label | Cycle repeat mode (All, One, Off) |
 | `s` | Tap Shuffle label | Toggle shuffle mode |
+| `o` / `O` | Tap Audio Device badge | Open audio output device selector |
 
 ### Visuals & Views
 
@@ -151,6 +153,7 @@ Auri separates playback, analysis, and rendering into distinct layers:
 4. **Ratatui Interface (`src/ui/`):** Computes responsive layout areas, renders custom widgets directly to the terminal buffer, and collects click hit zones for mobile/mouse interactions.
 5. **Kitty Protocol (`src/terminal/`):** Transmits base64-encoded PNG image chunks directly to the terminal window and manages cleanup on view changes.
 6. **Linux MPRIS Service (`src/mpris.rs`):** Serves `org.mpris.MediaPlayer2` on session D-Bus, routing player actions across an unbounded crossbeam channel to the main loop with zero audio or render latency.
+7. **Audio Output Device Manager (`src/audio/output.rs`, `src/ui/device.rs`):** Dynamically enumerates output endpoints and hot-swaps CPAL streams without interrupting the background decoder worker or clearing ring-buffer samples.
 
 ## License
 
