@@ -1439,8 +1439,10 @@ fn test_pet_view_rendering() {
         .flat_map(|y| (0..30).map(move |x| buffer.cell((x, y)).unwrap().symbol().to_string()))
         .collect();
 
-    assert!(text.contains("Pet"));
-    assert!(text.contains("zZ") || text.contains("-.-"));
+    assert!(text.contains("Kyoku"), "pane title missing from the render");
+    // Sprite frames cycle on wall-clock time, so assert on the note row
+    // instead, which depends only on playback state.
+    assert!(text.contains("zzZ"), "sleeping pet should show the sleep marker");
     assert!(hit_zones.iter().any(|z| z.action == HitAction::TogglePet));
 
     // 2. Render in active playing state with audio energy (dancing cat)
@@ -1468,7 +1470,9 @@ fn test_pet_view_rendering() {
         .flat_map(|y| (0..30).map(move |x| buffer2.cell((x, y)).unwrap().symbol().to_string()))
         .collect();
 
-    assert!(text2.contains("Pet"));
+    assert!(text2.contains("Kyoku"), "pane title missing from the render");
+    assert!(text2.contains("\u{266b}"), "playing pet should show music notes");
+    assert!(!text2.contains("zzZ"), "playing pet should not show the sleep marker");
     assert!(hit_zones.iter().any(|z| z.action == HitAction::TogglePet));
 }
 
