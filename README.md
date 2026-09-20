@@ -91,7 +91,7 @@ auri
 | `v` | Tap Visualizer box | Cycle visualizer (Spectrum Bars, Waveform) |
 | `t` | - | Cycle theme (Neon Rainbow, Vercel Dark, Ice, Sunset, Mono) |
 | `a` | - | Toggle album artwork display |
-| `x` | Tap Pet box or badge | Toggle dancing ASCII pet display |
+| `x` | Tap Pet box or badge | Toggle dancing pixel pet display |
 | `1` | Tap Player tab | Switch to Player view |
 | `2` | Tap Library tab | Switch to Library and Playlist browser |
 | `3` | Tap Queue tab | Switch to Playback Queue manager |
@@ -155,7 +155,7 @@ Auri separates playback, analysis, and rendering into distinct layers:
 5. **Kitty Protocol (`src/terminal/`):** Transmits base64-encoded PNG image chunks directly to the terminal window and manages cleanup on view changes.
 6. **Linux MPRIS Service (`src/mpris.rs`):** Serves `org.mpris.MediaPlayer2` on session D-Bus, routing player actions across an unbounded crossbeam channel to the main loop with zero audio or render latency.
 7. **Audio Output Device Manager (`src/audio/output.rs`, `src/ui/device.rs`):** Dynamically enumerates output endpoints and hot-swaps CPAL streams without interrupting the background decoder worker or clearing ring-buffer samples.
-8. **ASCII Pet View (`src/ui/pet.rs`):** Renders audio-reactive dancing ASCII pet frames that react to rhythm and audio energy, with automatic sleep state when paused and touch hit zone toggling.
+8. **Pixel Pet View (`src/ui/pet/`):** Draws an audio-reactive dancing cat in ANSI half-blocks, with frames that speed up with rhythm and audio energy, three sprite sizes that follow the pane, an automatic sleep state when paused, and touch hit zone toggling.
 
 ## License
 

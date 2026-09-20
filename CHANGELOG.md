@@ -36,13 +36,20 @@ All notable changes to Auri are documented in this file.
 - Provide touch and mouse hit zone support for direct device selection and tap-to-open.
 - Automatically fall back to the system default device if a preferred device is unplugged or unavailable.
 
-### 🐾 Dancing ASCII Pet
-- Add audio-reactive dancing ASCII pet with multi-frame bounce and ear wiggle animations reacting to playback tempo and bass energy.
-- Add sleeping state (`( -.- ) zZ`) when playback is paused or stopped.
+### 🐾 Dancing Pixel Pet
+- Add audio-reactive dancing cat drawn in ANSI half-blocks, with four bounce frames that speed up with playback tempo and bass energy.
+- Draw the cat with triangular ears, eyes with a highlight, a nose and muzzle, whiskers, blush, a collar, and a tail, so it reads as a cat instead of a blob.
+- Add three sprite sizes (16x16, 12x12, and 10x8) and pick the largest one that fits the pane, so the cat grows with the terminal instead of sitting in empty space.
+- Add a two-frame breathing sleep animation with the fur, collar, and headphones dimmed when playback is paused or stopped.
 - Integrate pet as a dedicated symmetrical box on the right side of the bottom player deck (`[Artwork] [Controls] [Pet]`).
 - Add toggle shortcut `x` and touch hit zone support on both the pet box and status bar badge (`🐾 [x]`).
 - Collapse side boxes automatically on narrow/mobile viewports (< 55 columns) to prioritize transport controls.
 - Persist pet toggle visibility preference in `config.toml` under `[ui.pet]`.
+
+### 🖼️ Bottom Deck Layout
+- Grow the bottom deck from a fixed 8 or 9 rows to between 8 and 13 rows, depending on terminal height, so album art and the pet get a bigger box.
+- Narrow both side boxes when they cannot fit at full size, instead of dropping the pet, so an 80 column terminal keeps artwork and pet side by side.
+- Keep at least 6 rows for the visualizer and 30 columns for the transport controls at every deck size.
 
 ### 🏷️ Versioning
 - Bump project version to 0.2.0.

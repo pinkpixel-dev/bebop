@@ -1404,3 +1404,49 @@ fn test_pet_view_rendering() {
     assert!(text2.contains("Pet"));
     assert!(hit_zones.iter().any(|z| z.action == HitAction::TogglePet));
 }
+
+#[test]
+fn test_deck_grows_with_terminal_height() {
+    // The bottom deck should get taller as the terminal does, and the side
+    // boxes get wider with it, without ever starving the visualizer.
+    let mut last_deck = 0u16;
+    for height in [24u16, 26, 30, 36, 42, 50] {
+        let area = Rect::new(0, 0, 120, height);
+        let layout = AppLayout::calculate(area, true, true);
+        let art = layout.artwork.expect("artwork box at 120 columns");
+        let pet = layout.pet.expect("pet box at 120 columns");
+
+        assert!(
+            art.height >= last_deck,
+            "deck shrank going from a shorter terminal to height {height}"
+        );
+        last_deck = art.height;
+
+        assert!(
+            layout.visualizer.height >= 6,
+            "visualizer starved at height {height}"
+        );
+        assert_eq!(art.width, pet.width);
+        // Side boxes stay square in pixel terms: two cells wide per cell tall
+        assert_eq!(art.width - 2, (art.height - 2) * 2);
+        assert!(layout.player_controls.width >= 30);
+        assert_eq!(pet.x + pet.width, 120);
+    }
+
+    // A taller terminal really does buy a bigger box
+    let short = AppLayout::calculate(Rect::new(0, 0, 120, 24), true, true);
+    let tall = AppLayout::calculate(Rect::new(0, 0, 120, 44), true, true);
+    assert!(tall.pet.unwrap().width > short.pet.unwrap().width);
+}
+
+#[test]
+fn test_both_side_boxes_survive_an_80_column_terminal() {
+    // A tall but narrow terminal must not drop the pet just because the deck
+    // grew; the boxes narrow to make room for the controls instead.
+    let layout = AppLayout::calculate(Rect::new(0, 0, 80, 44), true, true);
+    let art = layout.artwork.expect("artwork box at 80 columns");
+    let pet = layout.pet.expect("pet box at 80 columns");
+    assert_eq!(art.width, pet.width);
+    assert!(layout.player_controls.width >= 30);
+    assert_eq!(pet.x + pet.width, 80);
+}

@@ -27,9 +27,17 @@ impl AppLayout {
             };
         }
 
-        let deck_height = if area.height >= 30 { 9 } else { 8 };
+        // The bottom deck grows with the terminal so artwork and the pet get a
+        // usable box. The visualizer keeps at least 6 rows at every tier.
+        let deck_height = match area.height {
+            h if h >= 42 => 13,
+            h if h >= 36 => 12,
+            h if h >= 30 => 11,
+            h if h >= 26 => 9,
+            _ => 8,
+        };
 
-        // Vertical split: Header (3 rows), Full-width Visualizer (min 6 rows), Bottom Deck (8-9 rows), Status (3 rows)
+        // Vertical split: Header (3 rows), Full-width Visualizer (min 6 rows), Bottom Deck (8-13 rows), Status (3 rows)
         let vert_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -48,7 +56,13 @@ impl AppLayout {
 
         // Bottom Deck horizontal split: Artwork on left, Controls in middle, Pet on right
         let inner_h = deck_area.height.saturating_sub(2);
-        let box_width = (inner_h * 2 + 2).min(deck_area.width / 3);
+        // Side boxes are twice as wide as they are tall so their contents come
+        // out roughly square on a terminal cell grid.
+        let square_width = inner_h * 2 + 2;
+        let box_width = square_width.min(deck_area.width / 3);
+        // With both side boxes on screen they have to leave the controls 35
+        // columns, so they may need to be narrower than a lone box would be.
+        let paired_width = box_width.min(deck_area.width.saturating_sub(35) / 2);
 
         // Terminal width below 55 collapses both side boxes to prioritize player controls
         let (has_art, has_pet) = if deck_area.width < 55 {
@@ -56,7 +70,7 @@ impl AppLayout {
         } else {
             match (show_artwork, show_pet) {
                 (true, true) => {
-                    if deck_area.width >= box_width * 2 + 35 {
+                    if paired_width >= 10 {
                         (true, true)
                     } else {
                         (true, false)
@@ -73,9 +87,9 @@ impl AppLayout {
                 let chunks = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([
-                        Constraint::Length(box_width),
+                        Constraint::Length(paired_width),
                         Constraint::Min(30),
-                        Constraint::Length(box_width),
+                        Constraint::Length(paired_width),
                     ])
                     .split(deck_area);
                 (Some(chunks[0]), chunks[1], Some(chunks[2]))
