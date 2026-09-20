@@ -2,6 +2,24 @@
 
 All notable changes to Bebop are documented in this file.
 
+## 1.0.0 - September 20, 2026
+
+### 🎵 First 1.0 release
+- Release Bebop 1.0.0 as a terminal music player for local MP3, FLAC, WAV, OGG, AAC, and M4A files.
+- Include library browsing, queue management, M3U/M3U8 playlists, synchronized lyrics, album artwork, multiple visualizers, themes, and the interactive pixel cat.
+- Support keyboard, mouse, and touch controls across the player, library, queue, lyrics, output device selector, and help views.
+
+### 🎧 Desktop playback
+- Include selectable audio output devices, desktop notifications, and Linux MPRIS controls for media keys, `playerctl`, desktop widgets, and lock screens.
+- Resample decoded audio to the active output stream rate so files retain the correct pitch and playback speed.
+
+### 🏷️ Bebop rename
+- Rename the application, executable, repository path, MPRIS identity, and configuration directory from Auri to Bebop.
+- Store settings in `~/.config/bebop/config.toml` and saved playlists in `~/.config/bebop/playlists/`. Existing Auri data is not moved automatically.
+
+### 🏷️ Versioning
+- Bump the project version from 0.3.0 to 1.0.0.
+
 ## 0.3.0 - September 20, 2026
 
 ### 🐾 Pet
