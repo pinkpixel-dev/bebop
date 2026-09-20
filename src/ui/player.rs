@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -22,6 +24,7 @@ pub enum HitAction {
     TabPlayer,
     TabLibrary,
     TabQueue,
+    TabLyrics,
     TabHelp,
     VisualizerCycle,
     FullscreenToggle,
@@ -34,6 +37,7 @@ pub enum HitAction {
     ToggleShuffle,
     SearchSelect(usize),
     SearchClose,
+    SeekLyric(Duration),
 }
 
 pub struct PlayerView;
@@ -89,6 +93,7 @@ impl PlayerView {
             Span::styled("[Player] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled(" Library  ", Style::default().fg(theme.text_muted)),
             Span::styled(" Queue  ", Style::default().fg(theme.text_muted)),
+            Span::styled(" Lyrics  ", Style::default().fg(theme.text_muted)),
             Span::styled(" ? Help ", Style::default().fg(theme.text_dim)),
         ]);
 
@@ -98,22 +103,26 @@ impl PlayerView {
         frame.render_widget(Paragraph::new(nav_tabs).alignment(Alignment::Right), inner);
 
         // Record hit zones for top navigation tabs
-        if inner.width > 35 {
-            let right_start = inner.right().saturating_sub(32);
+        if inner.width > 42 {
+            let right_start = inner.right().saturating_sub(40);
             hit_zones.push(HitZone {
                 rect: Rect::new(right_start, inner.top(), 9, 1),
                 action: HitAction::TabPlayer,
             });
             hit_zones.push(HitZone {
-                rect: Rect::new(right_start + 9, inner.top(), 10, 1),
+                rect: Rect::new(right_start + 9, inner.top(), 9, 1),
                 action: HitAction::TabLibrary,
             });
             hit_zones.push(HitZone {
-                rect: Rect::new(right_start + 19, inner.top(), 8, 1),
+                rect: Rect::new(right_start + 18, inner.top(), 7, 1),
                 action: HitAction::TabQueue,
             });
             hit_zones.push(HitZone {
-                rect: Rect::new(right_start + 27, inner.top(), 8, 1),
+                rect: Rect::new(right_start + 25, inner.top(), 8, 1),
+                action: HitAction::TabLyrics,
+            });
+            hit_zones.push(HitZone {
+                rect: Rect::new(right_start + 33, inner.top(), 7, 1),
                 action: HitAction::TabHelp,
             });
         }

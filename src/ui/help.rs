@@ -11,7 +11,7 @@ pub struct HelpOverlay;
 impl HelpOverlay {
     pub fn render(frame: &mut Frame, area: Rect, theme: &Theme) {
         let popup_width = (area.width * 7 / 10).clamp(40, 70);
-        let popup_height = (area.height * 8 / 10).clamp(16, 26);
+        let popup_height = (area.height * 8 / 10).clamp(18, 28);
 
         let vert_layout = Layout::default()
             .direction(Direction::Vertical)
@@ -91,8 +91,16 @@ impl HelpOverlay {
                 Span::styled("Toggle album artwork", Style::default().fg(theme.text_muted)),
             ]),
             Line::from(vec![
-                Span::styled("  1 / 2 / 3      ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-                Span::styled("Player / Library / Queue views", Style::default().fg(theme.text_muted)),
+                Span::styled("  1 / 2 / 3 / 4  ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+                Span::styled("Player / Library / Queue / Lyrics views", Style::default().fg(theme.text_muted)),
+            ]),
+            Line::from(vec![
+                Span::styled("  l              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+                Span::styled("Toggle synchronized lyrics view", Style::default().fg(theme.text_muted)),
+            ]),
+            Line::from(vec![
+                Span::styled("  Enter / s      ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+                Span::styled("Seek to lyric / Re-sync scroll (in Lyrics)", Style::default().fg(theme.text_muted)),
             ]),
             Line::from(vec![
                 Span::styled("  /              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),

@@ -195,14 +195,15 @@ impl LibraryView {
             Span::styled(" Player  ", Style::default().fg(theme.text_muted)),
             Span::styled("[Library] ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled(" Queue  ", Style::default().fg(theme.text_muted)),
+            Span::styled(" Lyrics  ", Style::default().fg(theme.text_muted)),
             Span::styled(" ? Help ", Style::default().fg(theme.text_dim)),
         ]);
         frame.render_widget(Paragraph::new(header_title).alignment(Alignment::Left), header_area);
         frame.render_widget(Paragraph::new(nav_tabs).alignment(Alignment::Right), header_area);
 
         // Record header tab hit zones
-        if header_area.width > 35 {
-            let right_start = header_area.right().saturating_sub(32);
+        if header_area.width > 42 {
+            let right_start = header_area.right().saturating_sub(40);
             hit_zones.push(HitZone {
                 rect: Rect::new(right_start, header_area.top(), 9, 1),
                 action: HitAction::TabPlayer,
@@ -212,11 +213,15 @@ impl LibraryView {
                 action: HitAction::TabLibrary,
             });
             hit_zones.push(HitZone {
-                rect: Rect::new(right_start + 19, header_area.top(), 8, 1),
+                rect: Rect::new(right_start + 19, header_area.top(), 7, 1),
                 action: HitAction::TabQueue,
             });
             hit_zones.push(HitZone {
-                rect: Rect::new(right_start + 27, header_area.top(), 8, 1),
+                rect: Rect::new(right_start + 26, header_area.top(), 8, 1),
+                action: HitAction::TabLyrics,
+            });
+            hit_zones.push(HitZone {
+                rect: Rect::new(right_start + 34, header_area.top(), 7, 1),
                 action: HitAction::TabHelp,
             });
         }

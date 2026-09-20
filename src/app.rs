@@ -8,11 +8,12 @@ use ratatui::Terminal;
 use crate::audio::{AudioEngine, PlaybackState};
 use crate::config::AppConfig;
 use crate::library::{MetadataReader, SearchState, Track};
+use crate::lyrics::{Lyrics, LyricsState};
 use crate::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use crate::terminal::{KittyRenderer, TerminalDetector, TerminalGraphics};
 use crate::theme::{extract_palette, ExtractedPalette, Theme};
 use crate::ui::player::{HitAction, HitZone, PlayerView};
-use crate::ui::{AppLayout, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, QueueState, QueueView, SearchOverlay};
+use crate::ui::{AppLayout, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, LyricsView, QueueState, QueueView, SearchOverlay};
 use crate::visualizers::bars::BarsVisualizer;
 use crate::visualizers::mirrored::MirroredBarsVisualizer;
 use crate::visualizers::particles::ParticlesVisualizer;
@@ -26,6 +27,7 @@ pub enum View {
     Player,
     Library,
     Queue,
+    Lyrics,
 }
 
 pub struct App {
@@ -36,6 +38,7 @@ pub struct App {
     pub active_view: View,
     pub library_state: LibraryState,
     pub queue_state: QueueState,
+    pub lyrics_state: LyricsState,
     pub visualizer_kind: VisualizerKind,
     pub visualizer: Box<dyn Visualizer>,
     pub fullscreen_visualizer: bool,
@@ -89,6 +92,7 @@ impl App {
         let graphics = TerminalDetector::detect();
         let library_state = LibraryState::new();
         let queue_state = QueueState::new();
+        let lyrics_state = LyricsState::new();
 
         let mut queue = Queue::new();
         queue.set_shuffle(config.player.shuffle);
@@ -101,6 +105,7 @@ impl App {
             active_view: View::Player,
             library_state,
             queue_state,
+            lyrics_state,
             visualizer_kind,
             visualizer,
             fullscreen_visualizer: false,
@@ -180,6 +185,10 @@ impl App {
         self.player.playback_state = PlaybackState::Playing;
         self.player.position = Duration::ZERO;
         self.player.duration = self.audio_engine.duration();
+
+        // Load synchronized lyrics if available
+        let lrc = Lyrics::load_for_track(p);
+        self.lyrics_state.set_lyrics(lrc);
 
         // If track is in queue, sync current_index; otherwise add it
         if let Some(idx) = self.queue.tracks.iter().position(|t| t.path == track.path) {
@@ -312,6 +321,13 @@ impl App {
                 let _ = KittyRenderer::clear_all();
                 self.last_art_rendered = None;
             }
+            HitAction::TabLyrics => {
+                self.active_view = View::Lyrics;
+                self.fullscreen_visualizer = false;
+                self.show_help = false;
+                let _ = KittyRenderer::clear_all();
+                self.last_art_rendered = None;
+            }
             HitAction::TabHelp => {
                 self.show_help = !self.show_help;
             }
@@ -353,6 +369,12 @@ impl App {
             HitAction::SearchClose => {
                 self.search_state.close();
                 self.last_art_rendered = None;
+            }
+            HitAction::SeekLyric(ts) => {
+                self.audio_engine.seek_to(ts);
+                self.player.position = ts;
+                let active_idx = self.lyrics_state.lyrics.as_ref().and_then(|l| l.find_active_index(ts));
+                self.lyrics_state.resume_auto_scroll(active_idx);
             }
         }
     }
@@ -445,6 +467,12 @@ impl App {
                 self.last_art_rendered = None;
                 return;
             }
+            KeyCode::Char('4') => {
+                self.active_view = View::Lyrics;
+                let _ = KittyRenderer::clear_all();
+                self.last_art_rendered = None;
+                return;
+            }
             KeyCode::Char('?') => {
                 self.show_help = !self.show_help;
                 return;
@@ -525,6 +553,42 @@ impl App {
                 }
                 return;
             }
+            View::Lyrics => {
+                let total = self.lyrics_state.lyrics.as_ref().map(|l| l.lines.len()).unwrap_or(0);
+                match key.code {
+                    KeyCode::Up | KeyCode::Char('k') => self.lyrics_state.move_up(),
+                    KeyCode::Down | KeyCode::Char('j') => self.lyrics_state.move_down(total),
+                    KeyCode::Enter => {
+                        if let Some(ts) = self.lyrics_state.selected_timestamp() {
+                            self.audio_engine.seek_to(ts);
+                            self.player.position = ts;
+                            let active_idx = self.lyrics_state.lyrics.as_ref().and_then(|l| l.find_active_index(ts));
+                            self.lyrics_state.resume_auto_scroll(active_idx);
+                        }
+                    }
+                    KeyCode::Char('s') => {
+                        let active_idx = self.lyrics_state.lyrics.as_ref().and_then(|l| l.find_active_index(self.player.position));
+                        self.lyrics_state.resume_auto_scroll(active_idx);
+                    }
+                    KeyCode::Char(' ') => self.toggle_play_pause(),
+                    KeyCode::Char('n') => self.next_track(),
+                    KeyCode::Char('p') => self.prev_track(),
+                    KeyCode::Right => self.audio_engine.seek_relative(5),
+                    KeyCode::Left => self.audio_engine.seek_relative(-5),
+                    KeyCode::Char('+') | KeyCode::Char('=') => {
+                        let _ = self.audio_engine.adjust_volume(0.05);
+                    }
+                    KeyCode::Char('-') => {
+                        let _ = self.audio_engine.adjust_volume(-0.05);
+                    }
+                    KeyCode::Char('m') => {
+                        let _ = self.audio_engine.toggle_mute();
+                    }
+                    KeyCode::Char('l') | KeyCode::Char('q') | KeyCode::Esc => self.active_view = View::Player,
+                    _ => {}
+                }
+                return;
+            }
             View::Player => {}
         }
 
@@ -568,6 +632,11 @@ impl App {
             }
             KeyCode::Char('r') => self.player.repeat = self.player.repeat.cycle(),
             KeyCode::Char('s') => self.toggle_shuffle(),
+            KeyCode::Char('l') => {
+                self.active_view = View::Lyrics;
+                let _ = KittyRenderer::clear_all();
+                self.last_art_rendered = None;
+            }
             _ => {}
         }
     }
@@ -598,10 +667,19 @@ impl App {
                 }
             }
             MouseEventKind::ScrollUp => {
-                let _ = self.audio_engine.adjust_volume(0.05);
+                if self.active_view == View::Lyrics {
+                    self.lyrics_state.move_up();
+                } else {
+                    let _ = self.audio_engine.adjust_volume(0.05);
+                }
             }
             MouseEventKind::ScrollDown => {
-                let _ = self.audio_engine.adjust_volume(-0.05);
+                if self.active_view == View::Lyrics {
+                    let total = self.lyrics_state.lyrics.as_ref().map(|l| l.lines.len()).unwrap_or(0);
+                    self.lyrics_state.move_down(total);
+                } else {
+                    let _ = self.audio_engine.adjust_volume(-0.05);
+                }
             }
             _ => {}
         }
@@ -625,6 +703,9 @@ impl App {
                 }
                 View::Queue => {
                     QueueView::render(frame, area, &self.queue, &self.queue_state, &self.theme, &mut self.hit_zones);
+                }
+                View::Lyrics => {
+                    LyricsView::render(frame, area, &self.player, &mut self.lyrics_state, &self.theme, &mut self.hit_zones);
                 }
                 View::Player => {
                     if is_fullscreen {

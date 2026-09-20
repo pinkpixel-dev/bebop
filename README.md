@@ -15,6 +15,7 @@ Auri combines real-time spectrum analysis, embedded album artwork via the Kitty 
 - **Kitty Album Artwork:** Renders embedded album art and local folder covers directly in Kitty, Ghostty, and WezTerm terminals with graceful fallback.
 - **Interactive Library & Playlists:** Dual-column file and playlist browser (`2`) to open folders, play albums, enqueue tracks, and manage `.m3u` / `.m3u8` playlists.
 - **Active Queue Management:** Inspect the queue (`3`), reorder, remove items (`d`), clear (`c`), or shuffle (`s`).
+- **Synchronized Lyrics:** Reads companion `.lrc` files and embedded lyric tags with real-time center-scrolling and tap-to-seek (`4` or `l`).
 - **Full-Screen Visualizer Mode:** Press `f` for a focused visualizer experience with a minimal now-playing footer.
 - **Touch & Mouse Support:** Click or tap progress bars to seek, drag volume, tap transport buttons, switch tabs, or cycle visualizers.
 - **Sleek Minimal Aesthetics:** Charcoal dark palette (`#121214`) with crisp typography and vibrant accent palettes.
@@ -89,6 +90,7 @@ auri
 | `1` | Tap Player tab | Switch to Player view |
 | `2` | Tap Library tab | Switch to Library and Playlist browser |
 | `3` | Tap Queue tab | Switch to Playback Queue manager |
+| `4` / `l` | Tap Lyrics tab | Switch to Synchronized Lyrics view |
 | `?` | Tap Help tab | Show or hide the keybindings overlay |
 | `q` / `Ctrl+C` | - | Quit Auri |
 
@@ -113,6 +115,17 @@ auri
 | `c` | Clear entire queue |
 | `s` | Shuffle queue order |
 | `1` | Return to Player view |
+
+### Lyrics View (`4` or `l`)
+
+| Key | Touch / Mouse Action | Description |
+| :--- | :--- | :--- |
+| `↑` / `↓` or `k` / `j` | Mouse wheel scroll | Browse lyric lines manually (pauses auto-scroll) |
+| `Enter` | Tap any line | Seek playback directly to that timestamp |
+| `s` | Tap re-sync badge | Snap back to active line and resume auto-scroll |
+| `Space` | Tap Play/Pause button | Toggle playback |
+| `n` / `p` | Tap Next/Prev button | Next or previous track |
+| `1` / `l` / `Esc` | Tap Player tab | Return to Player view |
 
 ## Architecture
 

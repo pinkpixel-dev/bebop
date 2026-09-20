@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use auri::audio::analysis::AudioAnalyzer;
 use auri::library::{format_time, Track};
+use auri::lyrics::{Lyrics, LyricsSource, LyricsState};
 use auri::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use auri::theme::Theme;
 use auri::ui::{AppLayout, LibraryState, QueueState};
@@ -738,6 +739,165 @@ fn test_queue_shuffle_jump_and_removal() {
     assert_eq!(queue.shuffle_order.len(), 4);
     // Indices above 2 should be decremented; former track 4 is now index 3
     assert_eq!(queue.current_index, Some(3));
+}
+
+#[test]
+fn test_lrc_parser_standard() {
+    let lrc_content = r#"
+[ti:Midnight City]
+[ar:M83]
+[al:Hurry Up, We're Dreaming]
+[offset:500]
+
+[00:10.50]Waiting in a car
+[00:15.00]Waiting for a ride in the dark
+[00:22.75]The city is my church
+"#;
+
+    let lyrics = Lyrics::parse(lrc_content);
+    assert_eq!(lyrics.title.as_deref(), Some("Midnight City"));
+    assert_eq!(lyrics.artist.as_deref(), Some("M83"));
+    assert_eq!(lyrics.album.as_deref(), Some("Hurry Up, We're Dreaming"));
+    assert_eq!(lyrics.offset_ms, 500);
+    assert_eq!(lyrics.lines.len(), 3);
+
+    // With offset 500ms:
+    // 10.50s (10500ms) + 500ms = 11000ms = 11.00s
+    assert_eq!(lyrics.lines[0].timestamp, Duration::from_millis(11000));
+    assert_eq!(lyrics.lines[0].text, "Waiting in a car");
+
+    // 15.00s (15000ms) + 500ms = 15500ms = 15.50s
+    assert_eq!(lyrics.lines[1].timestamp, Duration::from_millis(15500));
+    assert_eq!(lyrics.lines[1].text, "Waiting for a ride in the dark");
+
+    // 22.75s (22750ms) + 500ms = 23250ms = 23.25s
+    assert_eq!(lyrics.lines[2].timestamp, Duration::from_millis(23250));
+    assert_eq!(lyrics.lines[2].text, "The city is my church");
+}
+
+#[test]
+fn test_lrc_parser_multiple_timestamps() {
+    let lrc_content = r#"
+[00:05.00]Verse one
+[00:15.25][00:45.50]Repeated chorus line
+[01:00.00]Outro
+"#;
+
+    let lyrics = Lyrics::parse(lrc_content);
+    assert_eq!(lyrics.lines.len(), 4);
+
+    // Check sorted order
+    assert_eq!(lyrics.lines[0].timestamp, Duration::from_millis(5000));
+    assert_eq!(lyrics.lines[0].text, "Verse one");
+
+    assert_eq!(lyrics.lines[1].timestamp, Duration::from_millis(15250));
+    assert_eq!(lyrics.lines[1].text, "Repeated chorus line");
+
+    assert_eq!(lyrics.lines[2].timestamp, Duration::from_millis(45500));
+    assert_eq!(lyrics.lines[2].text, "Repeated chorus line");
+
+    assert_eq!(lyrics.lines[3].timestamp, Duration::from_millis(60000));
+    assert_eq!(lyrics.lines[3].text, "Outro");
+}
+
+#[test]
+fn test_lrc_negative_offset_clamp() {
+    let lrc_content = r#"
+[offset:-3000]
+[00:02.00]Line clamped to zero
+[00:10.00]Line shifted down
+"#;
+
+    let lyrics = Lyrics::parse(lrc_content);
+    assert_eq!(lyrics.lines.len(), 2);
+    // 2s - 3s = -1s clamped to 0
+    assert_eq!(lyrics.lines[0].timestamp, Duration::ZERO);
+    // 10s - 3s = 7s
+    assert_eq!(lyrics.lines[1].timestamp, Duration::from_secs(7));
+}
+
+#[test]
+fn test_lrc_active_index_matching() {
+    let lrc_content = r#"
+[00:10.00]First line
+[00:20.00]Second line
+[00:30.00]Third line
+"#;
+
+    let lyrics = Lyrics::parse(lrc_content);
+
+    // Before any line starts: None
+    assert_eq!(lyrics.find_active_index(Duration::from_secs(5)), None);
+
+    // Exactly at first line: Some(0)
+    assert_eq!(lyrics.find_active_index(Duration::from_secs(10)), Some(0));
+
+    // Between line 0 and 1: Some(0)
+    assert_eq!(lyrics.find_active_index(Duration::from_secs(15)), Some(0));
+
+    // Exactly at second line: Some(1)
+    assert_eq!(lyrics.find_active_index(Duration::from_secs(20)), Some(1));
+
+    // At or beyond third line: Some(2)
+    assert_eq!(lyrics.find_active_index(Duration::from_secs(30)), Some(2));
+    assert_eq!(lyrics.find_active_index(Duration::from_secs(99)), Some(2));
+}
+
+#[test]
+fn test_lyrics_state_navigation_and_sync() {
+    let lrc = Lyrics::parse("[00:05.00]Line 1\n[00:10.00]Line 2\n[00:15.00]Line 3\n");
+    let mut state = LyricsState::new();
+    state.set_lyrics(Some(lrc));
+
+    assert_eq!(state.selected_line_idx, 0);
+    assert!(state.auto_scroll);
+
+    // Sync when auto-scroll is on
+    state.sync_active(Some(1));
+    assert_eq!(state.selected_line_idx, 1);
+    assert_eq!(state.selected_timestamp(), Some(Duration::from_secs(10)));
+
+    // Manual navigation pauses auto-scroll
+    state.move_down(3);
+    assert_eq!(state.selected_line_idx, 2);
+    assert!(!state.auto_scroll);
+
+    // Sync while paused does NOT override manual selection
+    state.sync_active(Some(0));
+    assert_eq!(state.selected_line_idx, 2);
+
+    // Resume auto-scroll
+    state.resume_auto_scroll(Some(0));
+    assert!(state.auto_scroll);
+    assert_eq!(state.selected_line_idx, 0);
+}
+
+#[test]
+fn test_lyrics_companion_discovery() {
+    use std::fs::File;
+    use std::io::Write;
+
+    let temp_dir = std::env::temp_dir().join("auri_test_lyrics");
+    let _ = std::fs::create_dir_all(&temp_dir);
+
+    let audio_file = temp_dir.join("sample_track.flac");
+    let lrc_file = temp_dir.join("sample_track.lrc");
+
+    let _ = File::create(&audio_file);
+    let mut f = File::create(&lrc_file).expect("create lrc");
+    writeln!(f, "[00:01.00]Sample lyric line").unwrap();
+
+    let discovered = Lyrics::load_for_track(&audio_file);
+    assert!(discovered.is_some());
+    let lyrics = discovered.unwrap();
+    assert_eq!(lyrics.lines.len(), 1);
+    assert_eq!(lyrics.lines[0].text, "Sample lyric line");
+    assert_eq!(lyrics.source, LyricsSource::CompanionFile(lrc_file.clone()));
+
+    // Clean up
+    let _ = std::fs::remove_file(audio_file);
+    let _ = std::fs::remove_file(lrc_file);
+    let _ = std::fs::remove_dir(temp_dir);
 }
 
 
