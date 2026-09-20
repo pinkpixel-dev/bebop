@@ -24,7 +24,7 @@ impl PetView {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(theme.border))
-            .title(Span::styled(" 🐾 Pet ", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)))
+            .title(Span::styled(" 🐾 Kyoku ", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)))
             .style(Style::default().bg(theme.bg));
 
         let inner = block.inner(area);
