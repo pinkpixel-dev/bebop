@@ -17,6 +17,10 @@ All notable changes to Bebop are documented in this file.
 - Rename the application, executable, repository path, MPRIS identity, and configuration directory from Auri to Bebop.
 - Store settings in `~/.config/bebop/config.toml` and saved playlists in `~/.config/bebop/playlists/`. Existing Auri data is not moved automatically.
 
+### 📦 Installation
+- Publish the application to crates.io as `bebop-player` while keeping the installed executable named `bebop`.
+- Add `cargo install bebop-player` as the primary installation command.
+
 ### 🏷️ Versioning
 - Bump the project version from 0.3.0 to 1.0.0.
 

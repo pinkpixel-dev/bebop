@@ -33,9 +33,23 @@ Bebop combines real-time spectrum analysis, embedded album artwork via the Kitty
 - ALSA development libraries on Linux (`libasound2-dev` on Debian/Ubuntu, `alsa-lib-devel` on Fedora)
 - A modern terminal emulator (Kitty, Ghostty, or WezTerm for album artwork; any UTF-8 terminal for playback and visualizers)
 
-## Installation & Build
+## Installation
 
-Clone the repository and build with Cargo:
+Install Bebop from crates.io:
+
+```bash
+cargo install bebop-player
+```
+
+This installs the `bebop` executable. Launch it with a file, folder, playlist, or no argument:
+
+```bash
+bebop
+```
+
+### Build from source
+
+Clone the repository and build the release executable:
 
 ```bash
 git clone https://github.com/pinkpixel-dev/bebop.git
@@ -43,7 +57,7 @@ cd bebop
 cargo build --release
 ```
 
-The compiled binary will be placed at `./target/release/bebop`.
+The compiled executable is available at `./target/release/bebop`.
 
 ## Quick Start
 
