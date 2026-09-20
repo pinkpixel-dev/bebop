@@ -14,6 +14,8 @@ use crate::theme::Theme;
 use crate::ui::player::{HitAction, HitZone, PlayerView};
 use crate::ui::{AppLayout, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, QueueState, QueueView, SearchOverlay};
 use crate::visualizers::bars::BarsVisualizer;
+use crate::visualizers::mirrored::MirroredBarsVisualizer;
+use crate::visualizers::vu::VuMeterVisualizer;
 use crate::visualizers::waveform::WaveformVisualizer;
 use crate::visualizers::{Visualizer, VisualizerKind};
 
@@ -54,12 +56,16 @@ impl App {
 
         let theme = Theme::from_name(&config.ui.theme);
         let visualizer_kind = match config.ui.visualizer.to_lowercase().as_str() {
-            "waveform" => VisualizerKind::Waveform,
+            "mirrored" | "mirrored bars" | "mirror" => VisualizerKind::Mirrored,
+            "waveform" | "wave" => VisualizerKind::Waveform,
+            "vu" | "vumeter" | "vu meter" | "stereo vu" => VisualizerKind::VuMeter,
             _ => VisualizerKind::Bars,
         };
         let visualizer: Box<dyn Visualizer> = match visualizer_kind {
             VisualizerKind::Bars => Box::new(BarsVisualizer::default()),
+            VisualizerKind::Mirrored => Box::new(MirroredBarsVisualizer::default()),
             VisualizerKind::Waveform => Box::new(WaveformVisualizer::default()),
+            VisualizerKind::VuMeter => Box::new(VuMeterVisualizer::default()),
         };
 
         let repeat = match config.player.repeat.to_lowercase().as_str() {
@@ -248,7 +254,9 @@ impl App {
         self.visualizer_kind = self.visualizer_kind.next();
         self.visualizer = match self.visualizer_kind {
             VisualizerKind::Bars => Box::new(BarsVisualizer::default()),
+            VisualizerKind::Mirrored => Box::new(MirroredBarsVisualizer::default()),
             VisualizerKind::Waveform => Box::new(WaveformVisualizer::default()),
+            VisualizerKind::VuMeter => Box::new(VuMeterVisualizer::default()),
         };
     }
 
@@ -657,7 +665,9 @@ impl App {
         cfg.ui.artwork = self.show_artwork;
         cfg.ui.visualizer = match self.visualizer_kind {
             VisualizerKind::Bars => "bars".to_string(),
+            VisualizerKind::Mirrored => "mirrored".to_string(),
             VisualizerKind::Waveform => "waveform".to_string(),
+            VisualizerKind::VuMeter => "vu".to_string(),
         };
         let _ = cfg.save();
     }

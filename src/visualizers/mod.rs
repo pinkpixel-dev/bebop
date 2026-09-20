@@ -1,4 +1,6 @@
 pub mod bars;
+pub mod mirrored;
+pub mod vu;
 pub mod waveform;
 
 use ratatui::layout::Rect;
@@ -21,14 +23,18 @@ pub trait Visualizer: Send + Sync {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum VisualizerKind {
     Bars,
+    Mirrored,
     Waveform,
+    VuMeter,
 }
 
 impl VisualizerKind {
     pub fn next(&self) -> Self {
         match self {
-            Self::Bars => Self::Waveform,
-            Self::Waveform => Self::Bars,
+            Self::Bars => Self::Mirrored,
+            Self::Mirrored => Self::Waveform,
+            Self::Waveform => Self::VuMeter,
+            Self::VuMeter => Self::Bars,
         }
     }
 
@@ -36,7 +42,9 @@ impl VisualizerKind {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Bars => "Spectrum Bars",
+            Self::Mirrored => "Mirrored Bars",
             Self::Waveform => "Waveform",
+            Self::VuMeter => "Stereo VU Meter",
         }
     }
 }

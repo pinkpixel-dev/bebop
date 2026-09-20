@@ -373,3 +373,108 @@ fn test_theme_from_name() {
     let t_unknown = Theme::from_name("NonExistentTheme");
     assert_eq!(t_unknown.name, "Neon Rainbow");
 }
+
+#[test]
+fn test_visualizer_kind_cycle_and_names() {
+    use auri::visualizers::VisualizerKind;
+
+    let k1 = VisualizerKind::Bars;
+    assert_eq!(k1.name(), "Spectrum Bars");
+
+    let k2 = k1.next();
+    assert_eq!(k2, VisualizerKind::Mirrored);
+    assert_eq!(k2.name(), "Mirrored Bars");
+
+    let k3 = k2.next();
+    assert_eq!(k3, VisualizerKind::Waveform);
+    assert_eq!(k3.name(), "Waveform");
+
+    let k4 = k3.next();
+    assert_eq!(k4, VisualizerKind::VuMeter);
+    assert_eq!(k4.name(), "Stereo VU Meter");
+
+    let k5 = k4.next();
+    assert_eq!(k5, VisualizerKind::Bars);
+}
+
+#[test]
+fn test_mirrored_bars_visualizer() {
+    use auri::visualizers::mirrored::MirroredBarsVisualizer;
+    use auri::visualizers::Visualizer;
+    use auri::audio::frame::AudioFrame;
+    use auri::theme::Theme;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    use ratatui::layout::Rect;
+
+    let mut viz = MirroredBarsVisualizer::default();
+    assert_eq!(viz.name(), "Mirrored Bars");
+
+    let theme = Theme::neon_rainbow();
+    let mut audio = AudioFrame::default();
+    audio.spectrum = vec![0.5; 64];
+
+    let backend = TestBackend::new(60, 12);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal.draw(|f| {
+        let area = Rect::new(0, 0, 60, 12);
+        viz.render(f, area, &audio, &theme);
+    }).unwrap();
+
+    let buffer = terminal.backend().buffer();
+    // Verify some cells were rendered with block characters
+    let mut non_empty_count = 0;
+    for y in 0..12 {
+        for x in 0..60 {
+            let symbol = buffer.cell((x, y)).unwrap().symbol();
+            if symbol != " " {
+                non_empty_count += 1;
+            }
+        }
+    }
+    assert!(non_empty_count > 0, "Mirrored bars should render non-empty blocks");
+}
+
+#[test]
+fn test_vu_meter_visualizer() {
+    use auri::visualizers::vu::VuMeterVisualizer;
+    use auri::visualizers::Visualizer;
+    use auri::audio::frame::AudioFrame;
+    use auri::theme::Theme;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    use ratatui::layout::Rect;
+
+    let mut viz = VuMeterVisualizer::default();
+    assert_eq!(viz.name(), "Stereo VU Meter");
+
+    let theme = Theme::vercel_dark();
+    let mut audio = AudioFrame::default();
+    audio.rms_left = 0.5;
+    audio.rms_right = 0.25;
+    audio.peak_left = 0.995; // Should trigger clip
+    audio.peak_right = 0.4;
+
+    let backend = TestBackend::new(80, 14);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal.draw(|f| {
+        let area = Rect::new(0, 0, 80, 14);
+        viz.render(f, area, &audio, &theme);
+    }).unwrap();
+
+    let buffer = terminal.backend().buffer();
+    // Verify scale or channel labels were rendered
+    let mut rendered_text = String::new();
+    for y in 0..14 {
+        for x in 0..80 {
+            rendered_text.push_str(buffer.cell((x, y)).unwrap().symbol());
+        }
+        rendered_text.push('\n');
+    }
+
+    assert!(rendered_text.contains('L'), "VU meter should contain Left channel indicator");
+    assert!(rendered_text.contains('R'), "VU meter should contain Right channel indicator");
+    assert!(rendered_text.contains("CLIP"), "Left channel should trigger CLIP indicator");
+}
