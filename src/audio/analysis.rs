@@ -5,6 +5,17 @@ use crate::audio::frame::AudioFrame;
 const FFT_SIZE: usize = 2048;
 const WAVEFORM_SIZE: usize = 256;
 
+/// Quietest level that still draws a bar, in dBFS. Anything below this sits on
+/// the floor, so room noise and decayed reverb tails do not light up the panel.
+const DB_FLOOR: f32 = -60.0;
+/// Extra level given to the highest bin, in dB. Music rolls off toward the top
+/// of the spectrum and hearing is less sensitive up there, so treble needs a
+/// lift to stay visible next to bass.
+const HIGH_FREQ_TILT_DB: f32 = 12.0;
+/// Contrast curve applied after the dB mapping. Values above 1.0 pull the
+/// midrange back down so loud peaks still stand out from ordinary content.
+const CONTRAST_GAMMA: f32 = 1.15;
+
 /// Real-time audio analyzer transforming raw PCM samples into visualizer frames.
 pub struct AudioAnalyzer {
     fft: Arc<dyn Fft<f32>>,
@@ -136,10 +147,15 @@ impl AudioAnalyzer {
                 max_mag = max_mag.max(mag);
             }
 
-            // High-frequency boost: human hearing is less sensitive at high freqs,
-            // and music naturally rolls off at ~6dB/octave
-            let freq_weight = 1.0 + (b as f32 / self.num_bins as f32).powf(1.4) * 3.5;
-            *bin_val = (max_mag * freq_weight).min(1.0);
+            // Loudness is perceived logarithmically, so map the magnitude to
+            // dBFS before turning it into a bar height. Full scale is 0 dB and
+            // DB_FLOOR is the bottom of the panel.
+            let db = 20.0 * max_mag.max(1e-6).log10();
+            // High-frequency tilt: music rolls off at roughly 6 dB/octave and
+            // hearing is less sensitive up there, so lift the upper bins.
+            let tilt = (b as f32 / self.num_bins as f32).powf(1.4) * HIGH_FREQ_TILT_DB;
+            let normalized = ((db + tilt - DB_FLOOR) / -DB_FLOOR).clamp(0.0, 1.0);
+            *bin_val = normalized.powf(CONTRAST_GAMMA);
             current_freq = next_freq;
         }
 

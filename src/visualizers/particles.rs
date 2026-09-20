@@ -8,6 +8,31 @@ use crate::visualizers::Visualizer;
 
 const PARTICLE_SYMBOLS: [char; 5] = ['·', '•', '*', '✧', '✦'];
 
+/// How hard a bass transient throws a particle upward. Divided by particle
+/// weight, so light particles fly further on the same kick.
+const UPDRAFT: f32 = 2.8;
+/// Steady lift from overall energy, which is what raises the whole field
+/// during a loud passage and lets it sink during a quiet one.
+const SUSTAIN_LIFT: f32 = 0.014;
+/// Downward pull per frame. Constant rather than weight-scaled: weight already
+/// divides the lift, and scaling both ends made hover height vary with the
+/// square of weight, which pinned light particles to the ceiling and left
+/// heavy ones stuck on the floor.
+const GRAVITY: f32 = 0.035;
+/// Air thins toward the top. Upward motion is damped by up to this fraction at
+/// the ceiling and not at all at the floor, which is what gives the field a
+/// stable hover height instead of an all-or-nothing drift to one edge.
+const ALTITUDE_DRAG: f32 = 0.70;
+/// Per-frame velocity retention. Lower values make the field settle faster.
+const VERTICAL_DRAG: f32 = 0.90;
+const HORIZONTAL_DRAG: f32 = 0.90;
+/// Velocity clamps in cells per frame, so a loud passage cannot launch a
+/// particle off the panel in a single tick.
+const MAX_RISE: f32 = 1.6;
+const MAX_FALL: f32 = 1.2;
+/// Sideways sway driven by treble content.
+const SWAY: f32 = 0.10;
+
 #[derive(Clone, Debug)]
 struct Particle {
     x: f32,
@@ -26,6 +51,12 @@ pub struct ParticlesVisualizer {
     last_width: usize,
     last_height: usize,
     rng_state: u32,
+    /// Slow-moving average of bass level. Updrafts come from bass *above* this
+    /// baseline, so a steadily loud mix reads as calm rather than as one long
+    /// impulse that holds every particle against the ceiling.
+    bass_baseline: f32,
+    /// Frame counter driving the sway oscillation.
+    frame: u32,
 }
 
 impl Default for ParticlesVisualizer {
@@ -35,6 +66,8 @@ impl Default for ParticlesVisualizer {
             last_width: 0,
             last_height: 0,
             rng_state: 123456789,
+            bass_baseline: 0.0,
+            frame: 0,
         }
     }
 }
@@ -54,7 +87,7 @@ impl ParticlesVisualizer {
         for i in 0..count {
             let x = self.rand_f32() * width as f32;
             let y = (height as f32 * 0.3) + self.rand_f32() * (height as f32 * 0.65);
-            let weight = 0.5 + self.rand_f32() * 0.8;
+            let weight = 0.7 + self.rand_f32() * 0.6;
             self.particles.push(Particle {
                 x,
                 y,
@@ -112,36 +145,55 @@ impl Visualizer for ParticlesVisualizer {
 
         let overall_energy = bass * 0.55 + mid * 0.30 + treble * 0.15;
 
+        // Track the baseline and treat only the excess as a kick. This is what
+        // keeps the field bouncing instead of pinned: sustained bass raises the
+        // baseline within a second or so and stops producing lift.
+        self.bass_baseline = self.bass_baseline * 0.94 + bass * 0.06;
+        let kick = (bass - self.bass_baseline).max(0.0);
+
+        self.frame = self.frame.wrapping_add(1);
+        let sway_phase = self.frame as f32 * 0.18;
+
         // Update physics and render each particle
         for i in 0..self.particles.len() {
             let p = &mut self.particles[i];
 
-            // Bass updraft impulse (pushes particles upward against gravity)
-            if bass > 0.08 {
-                let impulse = (bass - 0.08) * 1.6 / p.weight;
-                p.vy -= impulse * 0.45;
+            // Bass transient throws the particle upward against gravity
+            if kick > 0.01 {
+                p.vy -= (kick * UPDRAFT) / p.weight;
             }
 
-            // Mid/treble flutter
-            if treble > 0.05 {
-                let flutter = (treble * 1.2) * (if p.seed % 2 == 0 { 1.0 } else { -1.0 });
-                p.vx += flutter * 0.15;
+            // Treble sway, phase-offset per particle so the field does not
+            // drift sideways as one block
+            let phase = sway_phase + (p.seed % 628) as f32 * 0.01;
+            p.vx += phase.sin() * treble * SWAY;
+
+            // Steady lift from the current energy level
+            p.vy -= (overall_energy * SUSTAIN_LIFT) / p.weight;
+
+            // Air thins with altitude, so rising costs more the higher a
+            // particle already is
+            if p.vy < 0.0 {
+                let altitude = 1.0 - (p.y / height as f32);
+                p.vy *= 1.0 - ALTITUDE_DRAG * altitude;
             }
 
             // Air drag & gravity
-            p.vx *= 0.88;
-            p.vy = (p.vy * 0.86) + (0.05 * p.weight); // gravity downward
+            p.vx *= HORIZONTAL_DRAG;
+            p.vy = (p.vy * VERTICAL_DRAG) + GRAVITY;
+            p.vy = p.vy.clamp(-MAX_RISE, MAX_FALL);
 
             p.x += p.vx;
             p.y += p.vy;
 
-            // Boundaries
+            // Boundaries: bounce off both the floor and the ceiling so a
+            // particle that reaches an edge comes back rather than sticking
             if p.y >= height as f32 - 1.0 {
                 p.y = height as f32 - 1.0;
                 p.vy = -p.vy * 0.25;
             } else if p.y < 0.0 {
                 p.y = 0.0;
-                p.vy = 0.0;
+                p.vy = -p.vy * 0.30;
             }
 
             if p.x < 0.0 {
@@ -158,22 +210,22 @@ impl Visualizer for ParticlesVisualizer {
             let screen_y = area.top() + (p.y.round() as u16).min(area.height.saturating_sub(1));
 
             if let Some(cell) = buf.cell_mut((screen_x, screen_y)) {
-                let (ch, style) = if p.energy >= 0.65 {
+                let (ch, style) = if p.energy >= 0.80 {
                     (
                         PARTICLE_SYMBOLS[4], // '✦'
                         Style::default().fg(theme.visualizer_peak).add_modifier(Modifier::BOLD),
                     )
-                } else if p.energy >= 0.40 {
+                } else if p.energy >= 0.62 {
                     (
                         PARTICLE_SYMBOLS[3], // '✧'
                         Style::default().fg(theme.visualizer_primary),
                     )
-                } else if p.energy >= 0.22 {
+                } else if p.energy >= 0.42 {
                     (
                         PARTICLE_SYMBOLS[2], // '*'
                         Style::default().fg(theme.visualizer_secondary),
                     )
-                } else if p.energy >= 0.10 {
+                } else if p.energy >= 0.22 {
                     (
                         PARTICLE_SYMBOLS[1], // '•'
                         Style::default().fg(theme.text_muted),

@@ -2,6 +2,18 @@
 
 All notable changes to Auri are documented in this file.
 
+## 0.2.1 - September 20, 2026
+
+### 🎚️ Visualizers
+- Map spectrum bins to dBFS instead of raw linear amplitude, so bars use the full height of the panel at normal listening levels.
+- Replace the linear high-frequency multiplier with a dB tilt, keeping treble visible without letting it slam the ceiling.
+- Add a contrast curve after the dB mapping so peaks still stand out from ordinary midrange content.
+
+### 🐛 Fixes
+- Fix the particle field pinning every particle to the top row. Updrafts now come from bass transients above a rolling baseline instead of any bass above a fixed threshold, so a steadily loud mix no longer reads as one continuous impulse.
+- Give particles altitude-dependent drag and a steady lift tied to overall energy, so the field hovers, bounces on beats, rises through loud passages, and settles on the floor in silence.
+- Rescale particle symbol thresholds and the treble sway for the new spectrum range.
+
 ## 0.2.0 - September 20, 2026
 
 ### 🎵 Lyrics
