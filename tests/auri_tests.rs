@@ -324,3 +324,52 @@ fn test_search_state_lifecycle() {
     assert!(!search.is_open);
     assert!(search.results.is_empty());
 }
+
+#[test]
+fn test_app_config_roundtrip() {
+    use auri::config::AppConfig;
+    use std::path::PathBuf;
+
+    let mut cfg = AppConfig::default();
+    cfg.player.volume = 0.65;
+    cfg.player.repeat = "one".to_string();
+    cfg.player.shuffle = true;
+    cfg.ui.theme = "Sunset".to_string();
+    cfg.ui.visualizer = "waveform".to_string();
+    cfg.ui.artwork = false;
+    cfg.library.paths = vec![PathBuf::from("/custom/music")];
+
+    let serialized = toml::to_string_pretty(&cfg).expect("Failed to serialize AppConfig");
+    let deserialized: AppConfig = toml::from_str(&serialized).expect("Failed to deserialize AppConfig");
+
+    assert_eq!(deserialized.player.volume, 0.65);
+    assert_eq!(deserialized.player.repeat, "one");
+    assert!(deserialized.player.shuffle);
+    assert_eq!(deserialized.ui.theme, "Sunset");
+    assert_eq!(deserialized.ui.visualizer, "waveform");
+    assert!(!deserialized.ui.artwork);
+    assert_eq!(deserialized.library.paths, vec![PathBuf::from("/custom/music")]);
+}
+
+#[test]
+fn test_theme_from_name() {
+    use auri::theme::Theme;
+
+    let t_neon = Theme::from_name("Neon Rainbow");
+    assert_eq!(t_neon.name, "Neon Rainbow");
+
+    let t_vercel = Theme::from_name("Vercel Dark");
+    assert_eq!(t_vercel.name, "Vercel Dark");
+
+    let t_ice = Theme::from_name("Ice");
+    assert_eq!(t_ice.name, "Ice");
+
+    let t_sunset = Theme::from_name("Sunset");
+    assert_eq!(t_sunset.name, "Sunset");
+
+    let t_mono = Theme::from_name("Mono");
+    assert_eq!(t_mono.name, "Mono");
+
+    let t_unknown = Theme::from_name("NonExistentTheme");
+    assert_eq!(t_unknown.name, "Neon Rainbow");
+}

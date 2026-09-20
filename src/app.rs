@@ -6,6 +6,7 @@ use ratatui::backend::Backend;
 use ratatui::Terminal;
 
 use crate::audio::{AudioEngine, PlaybackState};
+use crate::config::AppConfig;
 use crate::library::{MetadataReader, SearchState, Track};
 use crate::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use crate::terminal::{KittyRenderer, TerminalDetector, TerminalGraphics};
@@ -42,27 +43,52 @@ pub struct App {
     pub artwork_png: Option<Vec<u8>>,
     hit_zones: Vec<HitZone>,
     last_art_rendered: Option<(u16, u16, u16, u16)>,
+    pub config: AppConfig,
 }
 
 impl App {
     pub fn new() -> Result<Self, anyhow::Error> {
+        let config = AppConfig::load();
         let audio_engine = AudioEngine::new()?;
+        audio_engine.set_volume(config.player.volume);
+
+        let theme = Theme::from_name(&config.ui.theme);
+        let visualizer_kind = match config.ui.visualizer.to_lowercase().as_str() {
+            "waveform" => VisualizerKind::Waveform,
+            _ => VisualizerKind::Bars,
+        };
+        let visualizer: Box<dyn Visualizer> = match visualizer_kind {
+            VisualizerKind::Bars => Box::new(BarsVisualizer::default()),
+            VisualizerKind::Waveform => Box::new(WaveformVisualizer::default()),
+        };
+
+        let repeat = match config.player.repeat.to_lowercase().as_str() {
+            "one" | "track" => RepeatMode::One,
+            "off" => RepeatMode::Off,
+            _ => RepeatMode::All,
+        };
+
+        let mut player = PlayerState::default();
+        player.volume = config.player.volume;
+        player.repeat = repeat;
+        player.shuffle = config.player.shuffle;
+
         let graphics = TerminalDetector::detect();
         let library_state = LibraryState::new();
         let queue_state = QueueState::new();
 
         Ok(Self {
-            player: PlayerState::default(),
+            player,
             queue: Queue::new(),
             audio_engine,
-            theme: Theme::default(),
+            theme,
             active_view: View::Player,
             library_state,
             queue_state,
-            visualizer_kind: VisualizerKind::Bars,
-            visualizer: Box::new(BarsVisualizer::default()),
+            visualizer_kind,
+            visualizer,
             fullscreen_visualizer: false,
-            show_artwork: true,
+            show_artwork: config.ui.artwork,
             show_help: false,
             search_state: SearchState::new(),
             should_quit: false,
@@ -70,6 +96,7 @@ impl App {
             artwork_png: None,
             hit_zones: Vec::new(),
             last_art_rendered: None,
+            config,
         })
     }
 
@@ -615,5 +642,29 @@ impl App {
         }
 
         Ok(())
+    }
+
+    pub fn save_config(&self) {
+        let mut cfg = self.config.clone();
+        cfg.player.volume = self.player.volume;
+        cfg.player.repeat = match self.player.repeat {
+            RepeatMode::Off => "off".to_string(),
+            RepeatMode::All => "all".to_string(),
+            RepeatMode::One => "one".to_string(),
+        };
+        cfg.player.shuffle = self.player.shuffle;
+        cfg.ui.theme = self.theme.name.to_string();
+        cfg.ui.artwork = self.show_artwork;
+        cfg.ui.visualizer = match self.visualizer_kind {
+            VisualizerKind::Bars => "bars".to_string(),
+            VisualizerKind::Waveform => "waveform".to_string(),
+        };
+        let _ = cfg.save();
+    }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        self.save_config();
     }
 }

@@ -41,11 +41,18 @@ fn main() -> Result<(), anyhow::Error> {
         let target = PathBuf::from(&args[1]);
         let _ = app.open_target(&target);
     } else {
-        // Look for default ~/Music folder if it exists
-        if let Some(music_dir) = dirs::audio_dir() {
-            if music_dir.exists() {
-                let _ = app.load_directory(&music_dir);
-            }
+        // Look for configured library folders or default ~/Music folder
+        let target_dir = app
+            .config
+            .library
+            .paths
+            .iter()
+            .find(|p| p.exists())
+            .cloned()
+            .or_else(|| dirs::audio_dir().filter(|d| d.exists()));
+
+        if let Some(dir) = target_dir {
+            let _ = app.load_directory(&dir);
         }
     }
 
@@ -64,6 +71,8 @@ fn main() -> Result<(), anyhow::Error> {
             AppEvent::Tick => app.on_tick(),
         }
     }
+
+    app.save_config();
 
     // Clean terminal restoration
     let _ = KittyRenderer::clear_all();

@@ -144,6 +144,16 @@ impl Theme {
         }
     }
 
+    pub fn from_name(name: &str) -> Self {
+        match name.to_lowercase().as_str() {
+            "vercel dark" | "vercel" => Self::vercel_dark(),
+            "ice" => Self::ice(),
+            "sunset" => Self::sunset(),
+            "mono" => Self::mono(),
+            _ => Self::neon_rainbow(),
+        }
+    }
+
     pub fn cycle_next(&self) -> Self {
         match self.name {
             "Neon Rainbow" => Self::vercel_dark(),
