@@ -68,9 +68,10 @@ impl QueueView {
         let footer_area = vert_chunks[2];
 
         // 1. Header
+        let shuffle_status = if queue.shuffle { " [Shuffle: On]" } else { "" };
         let header_title = Line::from(vec![
             Span::styled(" ♪ Auri  ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("[Playback Queue] ({} tracks)", queue.tracks.len()), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled(format!("[Playback Queue] ({} tracks){}", queue.tracks.len(), shuffle_status), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
         ]);
         let nav_tabs = Line::from(vec![
             Span::styled(" Player  ", Style::default().fg(theme.text_muted)),
@@ -131,6 +132,7 @@ impl QueueView {
         frame.render_widget(queue_list, list_area);
 
         // 3. Footer instructions
+        let shuffle_lbl = if queue.shuffle { "Shuffle [On]  " } else { "Shuffle [Off]  " };
         let tips = Line::from(vec![
             Span::styled("Enter: ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled("Jump to Track  ", Style::default().fg(theme.text_muted)),
@@ -139,10 +141,19 @@ impl QueueView {
             Span::styled("c: ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled("Clear  ", Style::default().fg(theme.text_muted)),
             Span::styled("s: ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-            Span::styled("Shuffle  ", Style::default().fg(theme.text_muted)),
+            Span::styled(shuffle_lbl, Style::default().fg(if queue.shuffle { theme.visualizer_primary } else { theme.text_muted })),
             Span::styled("1: ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled("Player View", Style::default().fg(theme.text_muted)),
         ]);
         frame.render_widget(Paragraph::new(tips).alignment(Alignment::Center), footer_area);
+
+        let total_tip_len = 76u16;
+        if footer_area.width >= total_tip_len {
+            let start_x = footer_area.x + (footer_area.width - total_tip_len) / 2;
+            hit_zones.push(HitZone {
+                rect: Rect::new(start_x + 49, footer_area.top(), 16, 1),
+                action: HitAction::ToggleShuffle,
+            });
+        }
     }
 }

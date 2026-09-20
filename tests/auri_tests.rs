@@ -626,4 +626,118 @@ fn test_particles_visualizer() {
     assert!(particle_count > 0, "Particles should render across the buffer");
 }
 
+#[test]
+fn test_fisher_yates_shuffle_deck() {
+    // 0 and 1 elements
+    assert_eq!(Queue::generate_shuffle_deck(0, None), Vec::<usize>::new());
+    assert_eq!(Queue::generate_shuffle_deck(1, None), vec![0]);
+    assert_eq!(Queue::generate_shuffle_deck(1, Some(0)), vec![0]);
+
+    // 10 elements: must be a valid permutation
+    let deck = Queue::generate_shuffle_deck(10, None);
+    assert_eq!(deck.len(), 10);
+    let mut sorted = deck.clone();
+    sorted.sort();
+    assert_eq!(sorted, (0..10).collect::<Vec<usize>>());
+
+    // Pinned first element
+    let pinned_deck = Queue::generate_shuffle_deck(10, Some(7));
+    assert_eq!(pinned_deck[0], 7);
+    let mut sorted_pinned = pinned_deck.clone();
+    sorted_pinned.sort();
+    assert_eq!(sorted_pinned, (0..10).collect::<Vec<usize>>());
+}
+
+#[test]
+fn test_queue_shuffle_mode_forward_and_backward() {
+    let mut queue = Queue::new();
+    let tracks = (0..5)
+        .map(|i| Track::new(format!("/music/track_{}.mp3", i)))
+        .collect::<Vec<_>>();
+
+    // Start playback at track 2 in sequential mode
+    queue.set_tracks(tracks.clone(), 2);
+    assert_eq!(queue.current_index, Some(2));
+
+    // Turn shuffle on: current track 2 MUST remain active at cursor 0
+    queue.set_shuffle(true);
+    assert!(queue.shuffle);
+    assert_eq!(queue.current_index, Some(2));
+    assert_eq!(queue.shuffle_cursor, 0);
+    assert_eq!(queue.shuffle_order[0], 2);
+
+    // Verify all 5 tracks are in shuffle order
+    let mut sorted = queue.shuffle_order.clone();
+    sorted.sort();
+    assert_eq!(sorted, vec![0, 1, 2, 3, 4]);
+
+    // Advance through the entire shuffled queue
+    let mut played_indices = vec![2];
+    for _ in 0..4 {
+        let _ = queue.advance_next(false).expect("should advance within deck");
+        played_indices.push(queue.current_index.unwrap());
+    }
+    assert_eq!(played_indices, queue.shuffle_order);
+
+    // At end of deck with repeat off, advance_next returns None
+    assert!(queue.advance_next(false).is_none());
+
+    // Step backwards along the exact sequence played
+    for &expected_idx in played_indices.iter().rev().skip(1) {
+        let prev_path = queue.advance_prev().expect("should advance prev").path.clone();
+        assert_eq!(queue.current_index, Some(expected_idx));
+        assert_eq!(prev_path, tracks[expected_idx].path);
+    }
+
+    // At the very beginning of the shuffled deck, advance_prev stays at index 0
+    let _ = queue.advance_prev().expect("stays at first");
+    assert_eq!(queue.current_index, Some(2));
+}
+
+#[test]
+fn test_queue_shuffle_repeat_wrap() {
+    let mut queue = Queue::new();
+    let tracks = (0..3)
+        .map(|i| Track::new(format!("/music/track_{}.mp3", i)))
+        .collect::<Vec<_>>();
+
+    queue.set_shuffle(true);
+    queue.set_tracks(tracks, 0);
+
+    // Play all 3 tracks
+    queue.advance_next(false);
+    queue.advance_next(false);
+
+    // Advance with repeat_all: triggers fresh shuffle deck
+    let wrapped = queue.advance_next(true);
+    assert!(wrapped.is_some());
+    assert_eq!(queue.shuffle_cursor, 0);
+    assert_eq!(queue.shuffle_order.len(), 3);
+}
+
+#[test]
+fn test_queue_shuffle_jump_and_removal() {
+    use std::path::Path;
+
+    let mut queue = Queue::new();
+    let tracks = (0..5)
+        .map(|i| Track::new(format!("/music/track_{}.mp3", i)))
+        .collect::<Vec<_>>();
+
+    queue.set_shuffle(true);
+    queue.set_tracks(tracks, 0);
+
+    // Jump to track 4
+    let jumped = queue.jump_to(4).expect("valid jump");
+    assert_eq!(jumped.path, Path::new("/music/track_4.mp3"));
+    assert_eq!(queue.current_index, Some(4));
+
+    // Remove track 2
+    queue.remove_at(2);
+    assert_eq!(queue.tracks.len(), 4);
+    assert_eq!(queue.shuffle_order.len(), 4);
+    // Indices above 2 should be decremented; former track 4 is now index 3
+    assert_eq!(queue.current_index, Some(3));
+}
+
 

@@ -90,9 +90,12 @@ impl App {
         let library_state = LibraryState::new();
         let queue_state = QueueState::new();
 
+        let mut queue = Queue::new();
+        queue.set_shuffle(config.player.shuffle);
+
         Ok(Self {
             player,
-            queue: Queue::new(),
+            queue,
             audio_engine,
             theme,
             active_view: View::Player,
@@ -267,6 +270,11 @@ impl App {
         self.player.playback_state = new_state;
     }
 
+    pub fn toggle_shuffle(&mut self) {
+        self.player.shuffle = !self.player.shuffle;
+        self.queue.set_shuffle(self.player.shuffle);
+    }
+
     pub fn cycle_visualizer(&mut self) {
         self.visualizer_kind = self.visualizer_kind.next();
         self.visualizer = match self.visualizer_kind {
@@ -332,9 +340,7 @@ impl App {
             HitAction::ToggleRepeat => {
                 self.player.repeat = self.player.repeat.cycle();
             }
-            HitAction::ToggleShuffle => {
-                self.player.shuffle = !self.player.shuffle;
-            }
+            HitAction::ToggleShuffle => self.toggle_shuffle(),
             HitAction::SearchSelect(idx) => {
                 self.search_state.selected_idx = idx;
                 if let Some(track) = self.search_state.selected_track().cloned() {
@@ -513,7 +519,7 @@ impl App {
                         self.player.playback_state = PlaybackState::Stopped;
                         self.player.current_track = None;
                     }
-                    KeyCode::Char('s') => self.player.shuffle = !self.player.shuffle,
+                    KeyCode::Char('s') => self.toggle_shuffle(),
                     KeyCode::Char('q') | KeyCode::Esc => self.active_view = View::Player,
                     _ => {}
                 }
@@ -561,7 +567,7 @@ impl App {
                 }
             }
             KeyCode::Char('r') => self.player.repeat = self.player.repeat.cycle(),
-            KeyCode::Char('s') => self.player.shuffle = !self.player.shuffle,
+            KeyCode::Char('s') => self.toggle_shuffle(),
             _ => {}
         }
     }
