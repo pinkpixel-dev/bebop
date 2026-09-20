@@ -43,6 +43,9 @@ pub enum HitAction {
     DeviceClose,
     TogglePet,
     PetInteract,
+    QueueSelect(usize),
+    LibraryFolderSelect(usize),
+    LibraryTrackSelect(usize),
 }
 
 pub struct PlayerView;

@@ -120,25 +120,29 @@ bebop
 
 ### Library View (`2`)
 
-| Key | Description |
-| :--- | :--- |
-| `↑` / `↓` or `k` / `j` | Move selection up or down |
-| `←` / `→` or `h` / `l` | Switch between Folders/Playlists and Tracks panels |
-| `Enter` | Open folder, load playlist, or play selected track |
-| `a` | Add selected track or entire folder to queue |
-| `p` | Save active queue as a new playlist |
-| `1` | Return to Player view |
+| Key | Touch / Mouse Action | Description |
+| :--- | :--- | :--- |
+| `↑` / `↓` or `k` / `j` | Mouse wheel scroll | Move selection up or down |
+| `PgUp` / `PgDn` | - | Scroll by page up or down |
+| `Home` / `End` or `g` / `G` | - | Jump to top or bottom of list |
+| `←` / `→` or `h` / `l` | Tap panel | Switch between Folders/Playlists and Tracks panels |
+| `Enter` | Tap item twice | Open folder, load playlist, or play selected track |
+| `a` | - | Add selected track or entire folder to queue |
+| `p` | - | Save active queue as a new playlist |
+| `1` | Tap Player tab | Return to Player view |
 
 ### Queue View (`3`)
 
-| Key | Description |
-| :--- | :--- |
-| `↑` / `↓` or `k` / `j` | Move selection up or down |
-| `Enter` | Jump directly to selected track |
-| `d` / `Delete` | Remove selected track from queue |
-| `c` | Clear entire queue |
-| `s` | Shuffle queue order |
-| `1` | Return to Player view |
+| Key | Touch / Mouse Action | Description |
+| :--- | :--- | :--- |
+| `↑` / `↓` or `k` / `j` | Mouse wheel scroll | Move selection up or down |
+| `PgUp` / `PgDn` | - | Scroll by page up or down |
+| `Home` / `End` or `g` / `G` | - | Jump to top or bottom of queue |
+| `Enter` | Tap track twice | Jump directly to selected track |
+| `d` / `Delete` | - | Remove selected track from queue |
+| `c` | - | Clear entire queue |
+| `s` | Tap Shuffle label | Shuffle queue order |
+| `1` | Tap Player tab | Return to Player view |
 
 ### Lyrics View (`4` or `l`)
 

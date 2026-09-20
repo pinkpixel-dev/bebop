@@ -8,7 +8,7 @@ use bebop::lyrics::{Lyrics, LyricsSource, LyricsState};
 use bebop::notifications::NotificationManager;
 use bebop::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use bebop::theme::Theme;
-use bebop::ui::{AppLayout, LibraryState, QueueState};
+use bebop::ui::{AppLayout, LibraryPanel, LibraryState, QueueState};
 use ratatui::layout::Rect;
 use ratatui::style::Color;
 
@@ -217,6 +217,107 @@ fn test_library_and_queue_state() {
     assert_eq!(q_state.selected_idx, 1);
     q_state.move_up();
     assert_eq!(q_state.selected_idx, 0);
+}
+
+#[test]
+fn test_queue_scrolling_and_paging() {
+    let mut q_state = QueueState::new();
+    let total_tracks = 100;
+    let visible_height = 20;
+
+    assert_eq!(q_state.selected_idx, 0);
+    assert_eq!(q_state.scroll_offset, 0);
+
+    q_state.ensure_visible(visible_height, total_tracks);
+    assert_eq!(q_state.scroll_offset, 0);
+
+    for _ in 0..19 {
+        q_state.move_down(total_tracks);
+    }
+    assert_eq!(q_state.selected_idx, 19);
+    q_state.ensure_visible(visible_height, total_tracks);
+    assert_eq!(q_state.scroll_offset, 0);
+
+    q_state.move_down(total_tracks);
+    assert_eq!(q_state.selected_idx, 20);
+    q_state.ensure_visible(visible_height, total_tracks);
+    assert_eq!(q_state.scroll_offset, 1);
+
+    q_state.page_down(15, total_tracks);
+    assert_eq!(q_state.selected_idx, 35);
+    q_state.ensure_visible(visible_height, total_tracks);
+    assert_eq!(q_state.scroll_offset, 16);
+
+    q_state.jump_to_end(total_tracks);
+    assert_eq!(q_state.selected_idx, 99);
+    q_state.ensure_visible(visible_height, total_tracks);
+    assert_eq!(q_state.scroll_offset, 80);
+
+    q_state.page_up(15);
+    assert_eq!(q_state.selected_idx, 84);
+    q_state.ensure_visible(visible_height, total_tracks);
+    assert_eq!(q_state.scroll_offset, 80);
+
+    q_state.page_up(15);
+    assert_eq!(q_state.selected_idx, 69);
+    q_state.ensure_visible(visible_height, total_tracks);
+    assert_eq!(q_state.scroll_offset, 69);
+
+    q_state.jump_to_start();
+    assert_eq!(q_state.selected_idx, 0);
+    q_state.ensure_visible(visible_height, total_tracks);
+    assert_eq!(q_state.scroll_offset, 0);
+}
+
+#[test]
+fn test_library_scrolling_and_paging() {
+    let mut lib = LibraryState::new();
+    let visible_height = 10;
+
+    lib.track_entries = (0..50)
+        .map(|i| Track::new(PathBuf::from(format!("/music/track_{}.mp3", i))))
+        .collect();
+    lib.focused_panel = LibraryPanel::Tracks;
+
+    assert_eq!(lib.selected_track_idx, 0);
+    assert_eq!(lib.track_scroll_offset, 0);
+
+    lib.page_down(15);
+    assert_eq!(lib.selected_track_idx, 15);
+    lib.ensure_tracks_visible(visible_height);
+    assert_eq!(lib.track_scroll_offset, 6);
+
+    lib.jump_to_end();
+    assert_eq!(lib.selected_track_idx, 49);
+    lib.ensure_tracks_visible(visible_height);
+    assert_eq!(lib.track_scroll_offset, 40);
+
+    lib.jump_to_start();
+    assert_eq!(lib.selected_track_idx, 0);
+    lib.ensure_tracks_visible(visible_height);
+    assert_eq!(lib.track_scroll_offset, 0);
+
+    lib.focused_panel = LibraryPanel::Folders;
+    lib.folder_entries = (0..30)
+        .map(|i| PathBuf::from(format!("/music/folder_{}", i)))
+        .collect();
+    lib.selected_folder_idx = 0;
+    lib.folder_scroll_offset = 0;
+
+    lib.page_down(12);
+    assert_eq!(lib.selected_folder_idx, 12);
+    lib.ensure_folders_visible(visible_height);
+    assert_eq!(lib.folder_scroll_offset, 3);
+
+    lib.jump_to_end();
+    assert_eq!(lib.selected_folder_idx, 29);
+    lib.ensure_folders_visible(visible_height);
+    assert_eq!(lib.folder_scroll_offset, 20);
+
+    lib.jump_to_start();
+    assert_eq!(lib.selected_folder_idx, 0);
+    lib.ensure_folders_visible(visible_height);
+    assert_eq!(lib.folder_scroll_offset, 0);
 }
 
 #[test]

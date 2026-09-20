@@ -1,20 +1,28 @@
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, Paragraph};
+use ratatui::widgets::{
+    Block, BorderType, Borders, List, ListItem, Paragraph, Scrollbar, ScrollbarOrientation,
+    ScrollbarState,
+};
 use ratatui::Frame;
 
 use crate::player::Queue;
 use crate::theme::Theme;
 use crate::ui::player::{HitAction, HitZone};
 
+#[derive(Clone, Debug, Default)]
 pub struct QueueState {
     pub selected_idx: usize,
+    pub scroll_offset: usize,
 }
 
 impl QueueState {
     pub fn new() -> Self {
-        Self { selected_idx: 0 }
+        Self {
+            selected_idx: 0,
+            scroll_offset: 0,
+        }
     }
 
     pub fn move_up(&mut self) {
@@ -28,6 +36,46 @@ impl QueueState {
             self.selected_idx += 1;
         }
     }
+
+    pub fn page_up(&mut self, page_size: usize) {
+        self.selected_idx = self.selected_idx.saturating_sub(page_size);
+    }
+
+    pub fn page_down(&mut self, page_size: usize, total: usize) {
+        if total > 0 {
+            self.selected_idx = (self.selected_idx + page_size).min(total - 1);
+        }
+    }
+
+    pub fn jump_to_start(&mut self) {
+        self.selected_idx = 0;
+    }
+
+    pub fn jump_to_end(&mut self, total: usize) {
+        if total > 0 {
+            self.selected_idx = total - 1;
+        }
+    }
+
+    pub fn ensure_visible(&mut self, visible_height: usize, total: usize) {
+        if visible_height == 0 || total == 0 {
+            self.scroll_offset = 0;
+            self.selected_idx = 0;
+            return;
+        }
+        if self.selected_idx >= total {
+            self.selected_idx = total - 1;
+        }
+        if self.selected_idx < self.scroll_offset {
+            self.scroll_offset = self.selected_idx;
+        } else if self.selected_idx >= self.scroll_offset + visible_height {
+            self.scroll_offset = self.selected_idx + 1 - visible_height;
+        }
+        let max_offset = total.saturating_sub(visible_height);
+        if self.scroll_offset > max_offset {
+            self.scroll_offset = max_offset;
+        }
+    }
 }
 
 pub struct QueueView;
@@ -37,7 +85,7 @@ impl QueueView {
         frame: &mut Frame,
         area: Rect,
         queue: &Queue,
-        state: &QueueState,
+        state: &mut QueueState,
         theme: &Theme,
         hit_zones: &mut Vec<HitZone>,
     ) {
@@ -109,11 +157,21 @@ impl QueueView {
         }
 
         // 2. Queue list
+        let visible_height = list_area.height.saturating_sub(2) as usize;
+        state.ensure_visible(visible_height, queue.tracks.len());
+
         let mut list_items = Vec::new();
         if queue.tracks.is_empty() {
             list_items.push(ListItem::new("  (Queue is currently empty. Press '2' to browse Library and add tracks)").style(Style::default().fg(theme.text_dim)));
         } else {
-            for (i, t) in queue.tracks.iter().enumerate() {
+            let visible_tracks = queue
+                .tracks
+                .iter()
+                .enumerate()
+                .skip(state.scroll_offset)
+                .take(visible_height);
+
+            for (i, t) in visible_tracks {
                 let is_current = queue.current_index == Some(i);
                 let current_marker = if is_current { "▶ " } else { "  " };
                 let dur = t.formatted_duration();
@@ -129,12 +187,52 @@ impl QueueView {
                 };
 
                 list_items.push(ListItem::new(label).style(style));
+
+                // Hit zone for tap / click selection
+                let row_offset = (i - state.scroll_offset) as u16;
+                let row_y = list_area.top() + 1 + row_offset;
+                if row_y < list_area.bottom().saturating_sub(1) {
+                    hit_zones.push(HitZone {
+                        rect: Rect::new(list_area.left() + 1, row_y, list_area.width.saturating_sub(2), 1),
+                        action: HitAction::QueueSelect(i),
+                    });
+                }
             }
         }
 
-        let queue_list = List::new(list_items)
-            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(theme.border)));
+        let mut queue_block = Block::default()
+            .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
+            .border_style(Style::default().fg(theme.border));
+
+        if queue.tracks.len() > visible_height && !queue.tracks.is_empty() {
+            queue_block = queue_block.title(
+                Span::styled(
+                    format!(" [{}/{} tracks] ", state.selected_idx + 1, queue.tracks.len()),
+                    Style::default().fg(theme.text_dim),
+                )
+            );
+        }
+
+        let queue_list = List::new(list_items).block(queue_block);
         frame.render_widget(queue_list, list_area);
+
+        // Render scrollbar if list exceeds visible height
+        if queue.tracks.len() > visible_height {
+            let mut scrollbar_state = ScrollbarState::new(queue.tracks.len())
+                .position(state.selected_idx)
+                .viewport_content_length(visible_height);
+            frame.render_stateful_widget(
+                Scrollbar::new(ScrollbarOrientation::VerticalRight)
+                    .begin_symbol(None)
+                    .end_symbol(None)
+                    .track_symbol(Some("│"))
+                    .thumb_symbol("█")
+                    .style(Style::default().fg(theme.text_dim)),
+                list_area,
+                &mut scrollbar_state,
+            );
+        }
 
         // 3. Footer instructions
         let shuffle_lbl = if queue.shuffle { "Shuffle [On]  " } else { "Shuffle [Off]  " };
@@ -147,6 +245,8 @@ impl QueueView {
             Span::styled("Clear  ", Style::default().fg(theme.text_muted)),
             Span::styled("s: ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled(shuffle_lbl, Style::default().fg(if queue.shuffle { theme.visualizer_primary } else { theme.text_muted })),
+            Span::styled("PgUp/PgDn: ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+            Span::styled("Scroll  ", Style::default().fg(theme.text_muted)),
             Span::styled("1: ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled("Player View", Style::default().fg(theme.text_muted)),
         ]);

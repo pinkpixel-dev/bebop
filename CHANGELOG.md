@@ -2,6 +2,17 @@
 
 All notable changes to Bebop are documented in this file.
 
+## 1.0.1 - September 20, 2026
+
+### 🐛 Fixes
+- Keep selected items visible in the queue and library panels by windowing list rendering to viewport height and updating scroll offsets on selection changes.
+- Add vertical scrollbars to the queue list, library folder/playlist browser, and library tracks panel showing scroll progress.
+- Add page up, page down, home, and end navigation (`PgUp`, `PgDn`, `Home` / `g`, `End` / `G`) for queue and library lists.
+- Add mouse wheel scrolling and touch tap selection/activation support in Queue and Library views.
+
+### 🏷️ Versioning
+- Bump the project version from 1.0.0 to 1.0.1.
+
 ## 1.0.0 - September 20, 2026
 
 ### 🎵 First 1.0 release

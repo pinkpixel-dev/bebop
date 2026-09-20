@@ -489,6 +489,38 @@ impl App {
                 self.save_config();
             }
             HitAction::PetInteract => self.pet_the_cat(),
+            HitAction::QueueSelect(idx) => {
+                if self.queue_state.selected_idx == idx {
+                    if let Some(t) = self.queue.jump_to(idx).cloned() {
+                        let _ = self.play_track_file(t.path);
+                        self.active_view = View::Player;
+                    }
+                } else {
+                    self.queue_state.selected_idx = idx;
+                }
+            }
+            HitAction::LibraryFolderSelect(idx) => {
+                self.library_state.focused_panel = LibraryPanel::Folders;
+                if self.library_state.selected_folder_idx == idx {
+                    self.library_state.enter_selected_folder();
+                } else {
+                    self.library_state.selected_folder_idx = idx;
+                }
+            }
+            HitAction::LibraryTrackSelect(idx) => {
+                self.library_state.focused_panel = LibraryPanel::Tracks;
+                if self.library_state.selected_track_idx == idx {
+                    let tracks = self.library_state.track_entries.clone();
+                    if let Some(track) = tracks.get(idx) {
+                        let p = track.path.clone();
+                        self.queue.set_tracks(tracks, idx);
+                        let _ = self.play_track_file(p);
+                        self.active_view = View::Player;
+                    }
+                } else {
+                    self.library_state.selected_track_idx = idx;
+                }
+            }
         }
     }
 
@@ -674,6 +706,10 @@ impl App {
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => self.library_state.move_up(),
                     KeyCode::Down | KeyCode::Char('j') => self.library_state.move_down(),
+                    KeyCode::PageUp => self.library_state.page_up(15),
+                    KeyCode::PageDown => self.library_state.page_down(15),
+                    KeyCode::Home | KeyCode::Char('g') => self.library_state.jump_to_start(),
+                    KeyCode::End | KeyCode::Char('G') => self.library_state.jump_to_end(),
                     KeyCode::Left | KeyCode::Char('h') => self.library_state.focused_panel = LibraryPanel::Folders,
                     KeyCode::Right | KeyCode::Char('l') => self.library_state.focused_panel = LibraryPanel::Tracks,
                     KeyCode::Enter => {
@@ -717,6 +753,10 @@ impl App {
                 match key.code {
                     KeyCode::Up | KeyCode::Char('k') => self.queue_state.move_up(),
                     KeyCode::Down | KeyCode::Char('j') => self.queue_state.move_down(self.queue.tracks.len()),
+                    KeyCode::PageUp => self.queue_state.page_up(15),
+                    KeyCode::PageDown => self.queue_state.page_down(15, self.queue.tracks.len()),
+                    KeyCode::Home | KeyCode::Char('g') => self.queue_state.jump_to_start(),
+                    KeyCode::End | KeyCode::Char('G') => self.queue_state.jump_to_end(self.queue.tracks.len()),
                     KeyCode::Enter => {
                         if let Some(t) = self.queue.jump_to(self.queue_state.selected_idx).cloned() {
                             let _ = self.play_track_file(t.path);
@@ -860,18 +900,26 @@ impl App {
                 }
             }
             MouseEventKind::ScrollUp => {
-                if self.active_view == View::Lyrics {
-                    self.lyrics_state.move_up();
-                } else {
-                    let _ = self.audio_engine.adjust_volume(0.05);
+                match self.active_view {
+                    View::Lyrics => self.lyrics_state.move_up(),
+                    View::Queue => self.queue_state.move_up(),
+                    View::Library => self.library_state.move_up(),
+                    View::Player => {
+                        let _ = self.audio_engine.adjust_volume(0.05);
+                    }
                 }
             }
             MouseEventKind::ScrollDown => {
-                if self.active_view == View::Lyrics {
-                    let total = self.lyrics_state.lyrics.as_ref().map(|l| l.lines.len()).unwrap_or(0);
-                    self.lyrics_state.move_down(total);
-                } else {
-                    let _ = self.audio_engine.adjust_volume(-0.05);
+                match self.active_view {
+                    View::Lyrics => {
+                        let total = self.lyrics_state.lyrics.as_ref().map(|l| l.lines.len()).unwrap_or(0);
+                        self.lyrics_state.move_down(total);
+                    }
+                    View::Queue => self.queue_state.move_down(self.queue.tracks.len()),
+                    View::Library => self.library_state.move_down(),
+                    View::Player => {
+                        let _ = self.audio_engine.adjust_volume(-0.05);
+                    }
                 }
             }
             _ => {}
@@ -894,10 +942,10 @@ impl App {
 
             match active_view {
                 View::Library => {
-                    LibraryView::render(frame, area, &self.library_state, &self.theme, &mut self.hit_zones);
+                    LibraryView::render(frame, area, &mut self.library_state, &self.theme, &mut self.hit_zones);
                 }
                 View::Queue => {
-                    QueueView::render(frame, area, &self.queue, &self.queue_state, &self.theme, &mut self.hit_zones);
+                    QueueView::render(frame, area, &self.queue, &mut self.queue_state, &self.theme, &mut self.hit_zones);
                 }
                 View::Lyrics => {
                     LyricsView::render(frame, area, &self.player, &mut self.lyrics_state, &self.theme, &mut self.hit_zones);
