@@ -8,6 +8,10 @@ A terminal music player and audio visualizer for local audio files.
 
 Auri combines real-time spectrum analysis, embedded album artwork via the Kitty graphics protocol, interactive playlists and library browsing, and a responsive keyboard- and touch-friendly interface built with Ratatui.
 
+<p align="center">
+  <img src="screenshot.png" alt="Auri screenshot" width="85%">
+</p>
+
 ## Features
 
 - **Local Audio Playback:** Decodes MP3, FLAC, WAV, OGG, and AAC/M4A with pure Rust decoders via Symphonia and outputs low-latency audio through CPAL.
