@@ -6,12 +6,12 @@ use ratatui::backend::Backend;
 use ratatui::Terminal;
 
 use crate::audio::{AudioEngine, PlaybackState};
-use crate::library::{MetadataReader, Track};
+use crate::library::{MetadataReader, SearchState, Track};
 use crate::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use crate::terminal::{KittyRenderer, TerminalDetector, TerminalGraphics};
 use crate::theme::Theme;
 use crate::ui::player::{HitAction, HitZone, PlayerView};
-use crate::ui::{AppLayout, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, QueueState, QueueView};
+use crate::ui::{AppLayout, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, QueueState, QueueView, SearchOverlay};
 use crate::visualizers::bars::BarsVisualizer;
 use crate::visualizers::waveform::WaveformVisualizer;
 use crate::visualizers::{Visualizer, VisualizerKind};
@@ -36,6 +36,7 @@ pub struct App {
     pub fullscreen_visualizer: bool,
     pub show_artwork: bool,
     pub show_help: bool,
+    pub search_state: SearchState,
     pub should_quit: bool,
     pub terminal_graphics: TerminalGraphics,
     pub artwork_png: Option<Vec<u8>>,
@@ -63,6 +64,7 @@ impl App {
             fullscreen_visualizer: false,
             show_artwork: true,
             show_help: false,
+            search_state: SearchState::new(),
             should_quit: false,
             terminal_graphics: graphics,
             artwork_png: None,
@@ -279,6 +281,19 @@ impl App {
             HitAction::ToggleShuffle => {
                 self.player.shuffle = !self.player.shuffle;
             }
+            HitAction::SearchSelect(idx) => {
+                self.search_state.selected_idx = idx;
+                if let Some(track) = self.search_state.selected_track().cloned() {
+                    let _ = self.play_track_file(&track.path);
+                    self.search_state.close();
+                    self.active_view = View::Player;
+                    self.last_art_rendered = None;
+                }
+            }
+            HitAction::SearchClose => {
+                self.search_state.close();
+                self.last_art_rendered = None;
+            }
         }
     }
 
@@ -290,8 +305,65 @@ impl App {
             return;
         }
 
+        if self.search_state.is_open {
+            match key.code {
+                KeyCode::Esc => {
+                    self.search_state.close();
+                    self.last_art_rendered = None;
+                }
+                KeyCode::Enter => {
+                    if let Some(track) = self.search_state.selected_track().cloned() {
+                        let _ = self.play_track_file(&track.path);
+                        self.search_state.close();
+                        self.active_view = View::Player;
+                        self.last_art_rendered = None;
+                    }
+                }
+                KeyCode::Up => self.search_state.move_up(),
+                KeyCode::Down => self.search_state.move_down(),
+                KeyCode::Backspace => self.search_state.backspace(),
+                KeyCode::Char(c) => {
+                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                        if c == 'c' {
+                            self.should_quit = true;
+                        } else if c == 'u' {
+                            self.search_state.query.clear();
+                            self.search_state.refresh_results();
+                        }
+                    } else {
+                        self.search_state.type_char(c);
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
             self.should_quit = true;
+            return;
+        }
+
+        // Global search toggle with '/'
+        if key.code == KeyCode::Char('/') {
+            let mut pool = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+
+            for t in &self.queue.tracks {
+                if seen.insert(t.path.clone()) {
+                    pool.push(t.clone());
+                }
+            }
+
+            for t in &self.library_state.track_entries {
+                if seen.insert(t.path.clone()) {
+                    pool.push(t.clone());
+                }
+            }
+
+            let _ = KittyRenderer::clear_all();
+            self.last_art_rendered = None;
+            self.search_state.open(pool);
             return;
         }
 
@@ -525,13 +597,15 @@ impl App {
                 }
             }
 
-            if self.show_help {
+            if self.search_state.is_open {
+                SearchOverlay::render(frame, area, &self.search_state, &self.theme, &mut self.hit_zones);
+            } else if self.show_help {
                 HelpOverlay::render(frame, area, &self.theme);
             }
         })?;
 
         // Render Kitty graphics album artwork only when on Player view
-        if self.active_view == View::Player && !self.fullscreen_visualizer && self.show_artwork && self.terminal_graphics == TerminalGraphics::Kitty {
+        if self.active_view == View::Player && !self.fullscreen_visualizer && !self.search_state.is_open && self.show_artwork && self.terminal_graphics == TerminalGraphics::Kitty {
             if let (Some(rect), Some(png)) = (art_box_rect, &self.artwork_png) {
                 if self.last_art_rendered != Some(rect) {
                     let _ = KittyRenderer::render_png(png, rect.0, rect.1, rect.2, rect.3);

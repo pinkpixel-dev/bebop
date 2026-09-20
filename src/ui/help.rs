@@ -95,6 +95,10 @@ impl HelpOverlay {
                 Span::styled("Player / Library / Queue views", Style::default().fg(theme.text_muted)),
             ]),
             Line::from(vec![
+                Span::styled("  /              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+                Span::styled("Search music library", Style::default().fg(theme.text_muted)),
+            ]),
+            Line::from(vec![
                 Span::styled("  ? / Esc        ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
                 Span::styled("Toggle this help screen", Style::default().fg(theme.text_muted)),
             ]),

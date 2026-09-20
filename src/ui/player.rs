@@ -32,6 +32,8 @@ pub enum HitAction {
     NextTrack,
     ToggleRepeat,
     ToggleShuffle,
+    SearchSelect(usize),
+    SearchClose,
 }
 
 pub struct PlayerView;

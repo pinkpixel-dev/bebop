@@ -256,3 +256,71 @@ fn test_audio_engine_stop_and_finish_flag() {
         assert!(!engine.is_finished());
     }
 }
+
+#[test]
+fn test_fuzzy_search_scoring() {
+    use auri::library::{fuzzy_score, score_track, Track};
+    use std::path::PathBuf;
+
+    // Subsequence match
+    assert!(fuzzy_score("Bohemian Rhapsody", "boh").is_some());
+    assert!(fuzzy_score("Bohemian Rhapsody", "rhap").is_some());
+    assert!(fuzzy_score("Bohemian Rhapsody", "xyz").is_none());
+
+    // Prefix match scores higher than middle match
+    let prefix = fuzzy_score("Stairway to Heaven", "stair").unwrap();
+    let mid = fuzzy_score("Stairway to Heaven", "heav").unwrap();
+    assert!(prefix > mid);
+
+    // Track score across title, artist, album
+    let mut track = Track::new(PathBuf::from("/music/queen/bohemian.flac"));
+    track.title = "Bohemian Rhapsody".to_string();
+    track.artist = "Queen".to_string();
+    track.album = "A Night at the Opera".to_string();
+
+    assert!(score_track(&track, "queen").is_some());
+    assert!(score_track(&track, "opera").is_some());
+    assert!(score_track(&track, "bohem").is_some());
+    assert!(score_track(&track, "metallica").is_none());
+}
+
+#[test]
+fn test_search_state_lifecycle() {
+    use auri::library::{SearchState, Track};
+    use std::path::PathBuf;
+
+    let mut t1 = Track::new(PathBuf::from("/music/song1.flac"));
+    t1.title = "Hotel California".to_string();
+    t1.artist = "Eagles".to_string();
+
+    let mut t2 = Track::new(PathBuf::from("/music/song2.flac"));
+    t2.title = "California Dreamin'".to_string();
+    t2.artist = "The Mamas & The Papas".to_string();
+
+    let mut search = SearchState::new();
+    assert!(!search.is_open);
+
+    search.open(vec![t1.clone(), t2.clone()]);
+    assert!(search.is_open);
+    assert_eq!(search.results.len(), 2);
+
+    search.type_char('h');
+    search.type_char('o');
+    search.type_char('t');
+    assert_eq!(search.results.len(), 1);
+    assert_eq!(search.selected_track().unwrap().title, "Hotel California");
+
+    search.backspace();
+    search.backspace();
+    search.backspace();
+    assert_eq!(search.results.len(), 2);
+
+    search.move_down();
+    assert_eq!(search.selected_idx, 1);
+    search.move_up();
+    assert_eq!(search.selected_idx, 0);
+
+    search.close();
+    assert!(!search.is_open);
+    assert!(search.results.is_empty());
+}
