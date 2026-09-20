@@ -70,7 +70,7 @@ impl QueueView {
         // 1. Header
         let shuffle_status = if queue.shuffle { " [Shuffle: On]" } else { "" };
         let header_title = Line::from(vec![
-            Span::styled(" ♪ Auri  ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+            Span::styled(" ♪ Bebop  ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled(format!("[Playback Queue] ({} tracks){}", queue.tracks.len(), shuffle_status), Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
         ]);
         let nav_tabs = Line::from(vec![

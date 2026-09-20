@@ -101,7 +101,7 @@ impl MprisRoot {
 
     #[zbus(property)]
     fn identity(&self) -> &str {
-        "Auri"
+        "Bebop"
     }
 
     #[zbus(property)]
@@ -280,7 +280,7 @@ impl MprisService {
         let exit_clone = Arc::clone(&exit_flag);
 
         let handle = thread::Builder::new()
-            .name("auri-mpris".to_string())
+            .name("bebop-mpris".to_string())
             .spawn(move || {
                 let root = MprisRoot {
                     action_tx: tx_clone.clone(),
@@ -291,7 +291,7 @@ impl MprisService {
                 };
 
                 let conn_res = Builder::session()
-                    .and_then(|b| b.name("org.mpris.MediaPlayer2.auri"))
+                    .and_then(|b| b.name("org.mpris.MediaPlayer2.bebop"))
                     .and_then(|b| b.serve_at("/org/mpris/MediaPlayer2", root))
                     .and_then(|b| b.serve_at("/org/mpris/MediaPlayer2", player))
                     .and_then(|b| b.build());

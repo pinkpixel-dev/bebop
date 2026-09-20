@@ -40,7 +40,7 @@ impl HelpOverlay {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(theme.border_focused))
-            .title(Span::styled(" Auri Keybindings & Touch Controls ", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)))
+            .title(Span::styled(" Bebop Keybindings & Touch Controls ", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)))
             .style(Style::default().bg(theme.surface));
 
         let inner = block.inner(popup_area);
@@ -124,7 +124,7 @@ impl HelpOverlay {
             ]),
             Line::from(vec![
                 Span::styled("  q / Ctrl+C     ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-                Span::styled("Quit Auri", Style::default().fg(theme.text_muted)),
+                Span::styled("Quit Bebop", Style::default().fg(theme.text_muted)),
             ]),
         ];
 

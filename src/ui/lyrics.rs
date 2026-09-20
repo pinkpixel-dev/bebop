@@ -93,7 +93,7 @@ impl LyricsView {
         };
 
         let header_title = Line::from(vec![
-            Span::styled(" ♪ Auri  ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+            Span::styled(" ♪ Bebop  ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled(title_text, Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
             Span::styled(source_badge, Style::default().fg(theme.visualizer_primary)),
         ]);

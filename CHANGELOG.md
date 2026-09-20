@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Auri are documented in this file.
+All notable changes to Bebop are documented in this file.
 
 ## 0.3.0 - September 20, 2026
 

@@ -89,7 +89,7 @@ impl Default for AppConfig {
 
 impl AppConfig {
     pub fn config_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|p| p.join("auri").join("config.toml"))
+        dirs::config_dir().map(|p| p.join("bebop").join("config.toml"))
     }
 
     pub fn load() -> Self {

@@ -187,7 +187,7 @@ impl LibraryView {
 
         // 1. Header
         let header_title = Line::from(vec![
-            Span::styled(" ♪ Auri  ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+            Span::styled(" ♪ Bebop  ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
             Span::styled("[Library Browser]  ", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
             Span::styled(format!("📁 {}", state.current_dir.display()), Style::default().fg(theme.text_dim)),
         ]);

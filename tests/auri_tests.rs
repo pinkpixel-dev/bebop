@@ -1,14 +1,14 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use auri::audio::analysis::AudioAnalyzer;
-use auri::audio::LinearResampler;
-use auri::library::{format_time, Track};
-use auri::lyrics::{Lyrics, LyricsSource, LyricsState};
-use auri::notifications::NotificationManager;
-use auri::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
-use auri::theme::Theme;
-use auri::ui::{AppLayout, LibraryState, QueueState};
+use bebop::audio::analysis::AudioAnalyzer;
+use bebop::audio::LinearResampler;
+use bebop::library::{format_time, Track};
+use bebop::lyrics::{Lyrics, LyricsSource, LyricsState};
+use bebop::notifications::NotificationManager;
+use bebop::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
+use bebop::theme::Theme;
+use bebop::ui::{AppLayout, LibraryState, QueueState};
 use ratatui::layout::Rect;
 use ratatui::style::Color;
 
@@ -180,7 +180,7 @@ fn test_neon_rainbow_colors() {
 
 #[test]
 fn test_playlist_m3u_save_and_load() {
-    let temp_dir = std::env::temp_dir().join("auri_test_playlist");
+    let temp_dir = std::env::temp_dir().join("bebop_test_playlist");
     let _ = std::fs::create_dir_all(&temp_dir);
     let playlist_file = temp_dir.join("test_playlist.m3u");
 
@@ -251,11 +251,11 @@ fn test_metadata_and_decoder_probe() {
         .filter(|p| p.exists());
 
     if let Some(path) = test_path {
-        let (track, _art) = auri::library::MetadataReader::read_track(&path);
+        let (track, _art) = bebop::library::MetadataReader::read_track(&path);
         assert!(!track.title.is_empty());
         assert_eq!(track.format, "MP3");
 
-        let mut decoder = auri::audio::decoder::AudioDecoder::open(&path).expect("Decoder failed to open MP3");
+        let mut decoder = bebop::audio::decoder::AudioDecoder::open(&path).expect("Decoder failed to open MP3");
         assert!(decoder.sample_rate() > 0);
         assert!(decoder.channels() > 0);
 
@@ -267,7 +267,7 @@ fn test_metadata_and_decoder_probe() {
 
 #[test]
 fn test_audio_engine_stop_and_finish_flag() {
-    if let Ok(mut engine) = auri::audio::AudioEngine::new() {
+    if let Ok(mut engine) = bebop::audio::AudioEngine::new() {
         assert!(!engine.is_finished());
         engine.stop();
         assert!(!engine.is_finished());
@@ -276,7 +276,7 @@ fn test_audio_engine_stop_and_finish_flag() {
 
 #[test]
 fn test_fuzzy_search_scoring() {
-    use auri::library::{fuzzy_score, score_track, Track};
+    use bebop::library::{fuzzy_score, score_track, Track};
     use std::path::PathBuf;
 
     // Subsequence match
@@ -303,7 +303,7 @@ fn test_fuzzy_search_scoring() {
 
 #[test]
 fn test_search_state_lifecycle() {
-    use auri::library::{SearchState, Track};
+    use bebop::library::{SearchState, Track};
     use std::path::PathBuf;
 
     let mut t1 = Track::new(PathBuf::from("/music/song1.flac"));
@@ -344,7 +344,7 @@ fn test_search_state_lifecycle() {
 
 #[test]
 fn test_app_config_roundtrip() {
-    use auri::config::AppConfig;
+    use bebop::config::AppConfig;
     use std::path::PathBuf;
 
     let mut cfg = AppConfig::default();
@@ -370,7 +370,7 @@ fn test_app_config_roundtrip() {
 
 #[test]
 fn test_theme_from_name() {
-    use auri::theme::Theme;
+    use bebop::theme::Theme;
 
     let t_neon = Theme::from_name("Neon Rainbow");
     assert_eq!(t_neon.name, "Neon Rainbow");
@@ -402,7 +402,7 @@ fn test_theme_from_name() {
 
 #[test]
 fn test_visualizer_kind_cycle_and_names() {
-    use auri::visualizers::VisualizerKind;
+    use bebop::visualizers::VisualizerKind;
 
     let k1 = VisualizerKind::Bars;
     assert_eq!(k1.name(), "Spectrum Bars");
@@ -433,10 +433,10 @@ fn test_visualizer_kind_cycle_and_names() {
 
 #[test]
 fn test_mirrored_bars_visualizer() {
-    use auri::visualizers::mirrored::MirroredBarsVisualizer;
-    use auri::visualizers::Visualizer;
-    use auri::audio::frame::AudioFrame;
-    use auri::theme::Theme;
+    use bebop::visualizers::mirrored::MirroredBarsVisualizer;
+    use bebop::visualizers::Visualizer;
+    use bebop::audio::frame::AudioFrame;
+    use bebop::theme::Theme;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
     use ratatui::layout::Rect;
@@ -472,10 +472,10 @@ fn test_mirrored_bars_visualizer() {
 
 #[test]
 fn test_vu_meter_visualizer() {
-    use auri::visualizers::vu::VuMeterVisualizer;
-    use auri::visualizers::Visualizer;
-    use auri::audio::frame::AudioFrame;
-    use auri::theme::Theme;
+    use bebop::visualizers::vu::VuMeterVisualizer;
+    use bebop::visualizers::Visualizer;
+    use bebop::audio::frame::AudioFrame;
+    use bebop::theme::Theme;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
     use ratatui::layout::Rect;
@@ -515,7 +515,7 @@ fn test_vu_meter_visualizer() {
 
 #[test]
 fn test_artwork_palette_extraction() {
-    use auri::theme::extract_palette;
+    use bebop::theme::extract_palette;
     use image::{DynamicImage, RgbaImage, Rgba};
     use ratatui::style::Color;
 
@@ -539,7 +539,7 @@ fn test_artwork_palette_extraction() {
 
 #[test]
 fn test_artwork_palette_extraction_grayscale() {
-    use auri::theme::extract_palette;
+    use bebop::theme::extract_palette;
     use image::{DynamicImage, RgbaImage, Rgba};
 
     let mut img = RgbaImage::new(48, 48);
@@ -557,10 +557,10 @@ fn test_artwork_palette_extraction_grayscale() {
 
 #[test]
 fn test_waterfall_visualizer() {
-    use auri::visualizers::waterfall::WaterfallVisualizer;
-    use auri::visualizers::Visualizer;
-    use auri::audio::frame::AudioFrame;
-    use auri::theme::Theme;
+    use bebop::visualizers::waterfall::WaterfallVisualizer;
+    use bebop::visualizers::Visualizer;
+    use bebop::audio::frame::AudioFrame;
+    use bebop::theme::Theme;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
     use ratatui::layout::Rect;
@@ -595,10 +595,10 @@ fn test_waterfall_visualizer() {
 
 #[test]
 fn test_waterfall_intensity_drives_display() {
-    use auri::visualizers::waterfall::WaterfallVisualizer;
-    use auri::visualizers::Visualizer;
-    use auri::audio::frame::AudioFrame;
-    use auri::theme::Theme;
+    use bebop::visualizers::waterfall::WaterfallVisualizer;
+    use bebop::visualizers::Visualizer;
+    use bebop::audio::frame::AudioFrame;
+    use bebop::theme::Theme;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
     use ratatui::layout::Rect;
@@ -661,10 +661,10 @@ fn test_waterfall_intensity_drives_display() {
 
 #[test]
 fn test_particles_visualizer() {
-    use auri::visualizers::particles::ParticlesVisualizer;
-    use auri::visualizers::Visualizer;
-    use auri::audio::frame::AudioFrame;
-    use auri::theme::Theme;
+    use bebop::visualizers::particles::ParticlesVisualizer;
+    use bebop::visualizers::Visualizer;
+    use bebop::audio::frame::AudioFrame;
+    use bebop::theme::Theme;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
     use ratatui::layout::Rect;
@@ -947,7 +947,7 @@ fn test_lyrics_companion_discovery() {
     use std::fs::File;
     use std::io::Write;
 
-    let temp_dir = std::env::temp_dir().join("auri_test_lyrics");
+    let temp_dir = std::env::temp_dir().join("bebop_test_lyrics");
     let _ = std::fs::create_dir_all(&temp_dir);
 
     let audio_file = temp_dir.join("sample_track.flac");
@@ -995,7 +995,7 @@ fn test_notification_payload_formatting() {
 
 #[test]
 fn test_notification_config_roundtrip() {
-    use auri::config::AppConfig;
+    use bebop::config::AppConfig;
 
     let toml_str = r#"
 [player]
@@ -1045,7 +1045,7 @@ fn test_non_blocking_notification_dispatch() {
 
 #[test]
 fn test_mpris_state_metadata_dictionary() {
-    use auri::mpris::MprisState;
+    use bebop::mpris::MprisState;
     use std::time::Duration;
 
     let mut state = MprisState::default();
@@ -1078,7 +1078,7 @@ fn test_mpris_state_metadata_dictionary() {
 
 #[test]
 fn test_mpris_action_channel_dispatch() {
-    use auri::mpris::MprisAction;
+    use bebop::mpris::MprisAction;
     use std::time::Duration;
 
     let (tx, rx) = crossbeam_channel::unbounded();
@@ -1106,7 +1106,7 @@ fn test_mpris_action_channel_dispatch() {
 
 #[test]
 fn test_mpris_config_roundtrip() {
-    use auri::config::AppConfig;
+    use bebop::config::AppConfig;
 
     let toml_str = r#"
 [player]
@@ -1145,10 +1145,10 @@ visualizer = "bars"
 
 #[test]
 fn test_mpris_state_update() {
-    use auri::mpris::MprisService;
-    use auri::player::{PlayerState, RepeatMode};
-    use auri::audio::PlaybackState;
-    use auri::library::Track;
+    use bebop::mpris::MprisService;
+    use bebop::player::{PlayerState, RepeatMode};
+    use bebop::audio::PlaybackState;
+    use bebop::library::Track;
     use std::time::Duration;
 
     if let Some(service) = MprisService::new() {
@@ -1171,7 +1171,7 @@ fn test_mpris_state_update() {
 
 #[test]
 fn test_audio_device_info_structure() {
-    use auri::audio::AudioDeviceInfo;
+    use bebop::audio::AudioDeviceInfo;
 
     let dev = AudioDeviceInfo {
         name: "Headphones (USB Audio)".to_string(),
@@ -1189,8 +1189,8 @@ fn test_audio_device_info_structure() {
 
 #[test]
 fn test_device_state_lifecycle_and_navigation() {
-    use auri::audio::AudioDeviceInfo;
-    use auri::ui::DeviceState;
+    use bebop::audio::AudioDeviceInfo;
+    use bebop::ui::DeviceState;
 
     let mut state = DeviceState::new();
     assert!(!state.is_open);
@@ -1245,7 +1245,7 @@ fn test_device_state_lifecycle_and_navigation() {
 
 #[test]
 fn test_device_config_roundtrip() {
-    use auri::config::AppConfig;
+    use bebop::config::AppConfig;
 
     let toml_str = r#"
 [player]
@@ -1288,10 +1288,10 @@ visualizer = "bars"
 
 #[test]
 fn test_device_overlay_rendering() {
-    use auri::audio::AudioDeviceInfo;
-    use auri::theme::Theme;
-    use auri::ui::player::HitAction;
-    use auri::ui::{DeviceOverlay, DeviceState};
+    use bebop::audio::AudioDeviceInfo;
+    use bebop::theme::Theme;
+    use bebop::ui::player::HitAction;
+    use bebop::ui::{DeviceOverlay, DeviceState};
     use ratatui::backend::TestBackend;
     use ratatui::layout::Rect;
     use ratatui::Terminal;
@@ -1376,7 +1376,7 @@ fn test_pet_layout_calculation() {
 
 #[test]
 fn test_pet_config_roundtrip() {
-    use auri::config::AppConfig;
+    use bebop::config::AppConfig;
 
     // Default configuration has pet enabled
     let cfg = AppConfig::default();
@@ -1406,11 +1406,11 @@ visualizer = "bars"
 
 #[test]
 fn test_pet_view_rendering() {
-    use auri::audio::{AudioFrame, PlaybackState};
-    use auri::player::PlayerState;
-    use auri::theme::Theme;
-    use auri::ui::pet::PetView;
-    use auri::ui::player::HitAction;
+    use bebop::audio::{AudioFrame, PlaybackState};
+    use bebop::player::PlayerState;
+    use bebop::theme::Theme;
+    use bebop::ui::pet::PetView;
+    use bebop::ui::player::HitAction;
     use ratatui::backend::TestBackend;
     use ratatui::layout::Rect;
     use ratatui::Terminal;
@@ -1486,10 +1486,10 @@ fn test_pet_view_rendering() {
 
 #[test]
 fn test_pet_reaction_shows_hearts_and_wakes_the_cat() {
-    use auri::audio::{AudioFrame, PlaybackState};
-    use auri::player::PlayerState;
-    use auri::theme::Theme;
-    use auri::ui::pet::PetView;
+    use bebop::audio::{AudioFrame, PlaybackState};
+    use bebop::player::PlayerState;
+    use bebop::theme::Theme;
+    use bebop::ui::pet::PetView;
     use ratatui::backend::TestBackend;
     use ratatui::layout::Rect;
     use ratatui::Terminal;

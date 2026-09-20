@@ -108,7 +108,7 @@ impl PlayerView {
 
         let app_title = Line::from(vec![
             Span::styled(" ♪ ", Style::default().fg(theme.visualizer_primary).add_modifier(Modifier::BOLD)),
-            Span::styled("Auri", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
+            Span::styled("Bebop", Style::default().fg(theme.text).add_modifier(Modifier::BOLD)),
         ]);
 
         let nav_tabs = Line::from(vec![
@@ -180,7 +180,7 @@ impl PlayerView {
             }
         } else {
             lines.push(Line::from(Span::styled("  ◎  ", Style::default().fg(theme.text_dim))));
-            lines.push(Line::from(Span::styled("Auri Player", Style::default().fg(theme.text_dim))));
+            lines.push(Line::from(Span::styled("Bebop Player", Style::default().fg(theme.text_dim))));
         }
 
         if !lines.is_empty() {

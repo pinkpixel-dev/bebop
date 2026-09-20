@@ -25,7 +25,7 @@ impl NotificationManager {
 
         thread::spawn(move || {
             let _ = Notification::new()
-                .appname("Auri")
+                .appname("Bebop")
                 .summary(&summary)
                 .body(&body)
                 .icon("audio-x-generic")

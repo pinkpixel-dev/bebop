@@ -14,12 +14,12 @@ pub struct PlaylistInfo {
 pub struct PlaylistManager;
 
 impl PlaylistManager {
-    /// Directory where user-saved playlists are stored (~/.config/auri/playlists/)
+    /// Directory where user-saved playlists are stored (~/.config/bebop/playlists/)
     pub fn playlists_dir() -> PathBuf {
         if let Some(config_dir) = dirs::config_dir() {
-            config_dir.join("auri").join("playlists")
+            config_dir.join("bebop").join("playlists")
         } else {
-            PathBuf::from(".auri_playlists")
+            PathBuf::from(".bebop_playlists")
         }
     }
 
@@ -125,7 +125,7 @@ impl PlaylistManager {
         Ok(())
     }
 
-    /// Save active tracks as a named playlist in ~/.config/auri/playlists/<name>.m3u
+    /// Save active tracks as a named playlist in ~/.config/bebop/playlists/<name>.m3u
     pub fn save_named_playlist(name: &str, tracks: &[Track]) -> Result<PathBuf, anyhow::Error> {
         let dir = Self::playlists_dir();
         fs::create_dir_all(&dir)?;

@@ -11,9 +11,9 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
-use auri::app::App;
-use auri::event::{AppEvent, EventHandler};
-use auri::terminal::KittyRenderer;
+use bebop::app::App;
+use bebop::event::{AppEvent, EventHandler};
+use bebop::terminal::KittyRenderer;
 
 fn main() -> Result<(), anyhow::Error> {
     // Install panic hook to ensure terminal is cleanly restored on error

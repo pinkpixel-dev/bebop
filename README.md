@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="logo.png" alt="Auri logo" width="300">
+  <img src="logo.png" alt="Bebop logo" width="300">
 </p>
 
-# Auri
+# Bebop
 
 A terminal music player and audio visualizer for local audio files.
 
-Auri combines real-time spectrum analysis, embedded album artwork via the Kitty graphics protocol, interactive playlists and library browsing, and a responsive keyboard- and touch-friendly interface built with Ratatui.
+Bebop combines real-time spectrum analysis, embedded album artwork via the Kitty graphics protocol, interactive playlists and library browsing, and a responsive keyboard- and touch-friendly interface built with Ratatui.
 
 <p align="center">
-  <img src="screenshot.png" alt="Auri screenshot" width="85%">
+  <img src="screenshot.png" alt="Bebop screenshot" width="85%">
 </p>
 
 ## Features
@@ -38,37 +38,37 @@ Auri combines real-time spectrum analysis, embedded album artwork via the Kitty 
 Clone the repository and build with Cargo:
 
 ```bash
-git clone https://github.com/pinkpixel-dev/auri.git
-cd auri
+git clone https://github.com/pinkpixel-dev/bebop.git
+cd bebop
 cargo build --release
 ```
 
-The compiled binary will be placed at `./target/release/auri`.
+The compiled binary will be placed at `./target/release/bebop`.
 
 ## Quick Start
 
 Play an individual audio file:
 
 ```bash
-auri path/to/song.flac
+bebop path/to/song.flac
 ```
 
 Play a folder containing albums:
 
 ```bash
-auri ~/Music/Synthwave/
+bebop ~/Music/Synthwave/
 ```
 
 Load an M3U or M3U8 playlist:
 
 ```bash
-auri favorites.m3u
+bebop favorites.m3u
 ```
 
 Launch without arguments to load your system music directory (`~/Music`):
 
 ```bash
-auri
+bebop
 ```
 
 ## Keybindings & Controls
@@ -102,7 +102,7 @@ auri
 | `3` | Tap Queue tab | Switch to Playback Queue manager |
 | `4` / `l` | Tap Lyrics tab | Switch to Synchronized Lyrics view |
 | `?` | Tap Help tab | Show or hide the keybindings overlay |
-| `q` / `Ctrl+C` | - | Quit Auri |
+| `q` / `Ctrl+C` | - | Quit Bebop |
 
 ### Library View (`2`)
 
@@ -139,7 +139,7 @@ auri
 
 ### Linux MPRIS & Media Keys
 
-Auri implements the standard MPRIS D-Bus interface (`org.mpris.MediaPlayer2` and `org.mpris.MediaPlayer2.Player`). You can control playback using your desktop keyboard media keys, lock screen widgets, or `playerctl`:
+Bebop implements the standard MPRIS D-Bus interface (`org.mpris.MediaPlayer2` and `org.mpris.MediaPlayer2.Player`). You can control playback using your desktop keyboard media keys, lock screen widgets, or `playerctl`:
 
 ```bash
 playerctl play-pause
@@ -151,11 +151,11 @@ playerctl metadata
 
 ## Architecture
 
-Auri separates playback, analysis, and rendering into distinct layers:
+Bebop separates playback, analysis, and rendering into distinct layers:
 
 1. **Audio Engine (`src/audio/`):** A background decode worker continuously buffers PCM samples from Symphonia into a ring buffer. The CPAL audio stream drains the buffer with volume scaling.
 2. **Analysis Pipeline (`src/audio/analysis.rs`):** Applies a Hann window to recent PCM samples, executes forward FFT via `rustfft`, groups frequencies logarithmically into weighted bins, and applies fast-attack and smooth-decay filtering.
-3. **Playlists & Library (`src/player/playlist.rs`, `src/ui/library.rs`):** Parses and writes standard M3U/M3U8 playlists, manages user playlists in `~/.config/auri/playlists/`, and provides folder navigation.
+3. **Playlists & Library (`src/player/playlist.rs`, `src/ui/library.rs`):** Parses and writes standard M3U/M3U8 playlists, manages user playlists in `~/.config/bebop/playlists/`, and provides folder navigation.
 4. **Ratatui Interface (`src/ui/`):** Computes responsive layout areas, renders custom widgets directly to the terminal buffer, and collects click hit zones for mobile/mouse interactions.
 5. **Kitty Protocol (`src/terminal/`):** Transmits base64-encoded PNG image chunks directly to the terminal window and manages cleanup on view changes.
 6. **Linux MPRIS Service (`src/mpris.rs`):** Serves `org.mpris.MediaPlayer2` on session D-Bus, routing player actions across an unbounded crossbeam channel to the main loop with zero audio or render latency.

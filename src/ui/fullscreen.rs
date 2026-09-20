@@ -60,7 +60,7 @@ impl FullscreenView {
         let title_text = if let Some(track) = &player.current_track {
             track.title.as_str()
         } else {
-            "Auri Player"
+            "Bebop Player"
         };
 
         let title_line = Line::from(Span::styled(
