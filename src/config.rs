@@ -45,6 +45,8 @@ pub struct UiConfig {
     pub notifications: bool,
     #[serde(default = "default_true")]
     pub mpris: bool,
+    #[serde(default = "default_true")]
+    pub pet: bool,
 }
 
 impl Default for UiConfig {
@@ -55,6 +57,7 @@ impl Default for UiConfig {
             visualizer: "bars".to_string(),
             notifications: true,
             mpris: true,
+            pet: true,
         }
     }
 }

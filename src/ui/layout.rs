@@ -8,11 +8,12 @@ pub struct AppLayout {
     pub artwork: Option<Rect>,
     pub visualizer: Rect,
     pub player_controls: Rect,
+    pub pet: Option<Rect>,
     pub status: Rect,
 }
 
 impl AppLayout {
-    pub fn calculate(area: Rect, show_artwork: bool) -> Self {
+    pub fn calculate(area: Rect, show_artwork: bool, show_pet: bool) -> Self {
         if area.width < 10 || area.height < 8 {
             return Self {
                 outer: area,
@@ -21,6 +22,7 @@ impl AppLayout {
                 artwork: None,
                 visualizer: area,
                 player_controls: area,
+                pet: None,
                 status: area,
             };
         }
@@ -33,7 +35,7 @@ impl AppLayout {
             .constraints([
                 Constraint::Length(3),               // Header / Nav
                 Constraint::Min(6),                  // Full-width Visualizer
-                Constraint::Length(deck_height),     // Bottom Deck (Artwork + Controls)
+                Constraint::Length(deck_height),     // Bottom Deck (Artwork + Controls + Pet)
                 Constraint::Length(3),               // Status Bar
             ])
             .split(area);
@@ -44,27 +46,61 @@ impl AppLayout {
         let deck_area = vert_chunks[2];
         let status = vert_chunks[3];
 
-        // Bottom Deck horizontal split: Artwork on left (visually square), Controls on right
-        let (artwork, player_controls) = if show_artwork && deck_area.width >= 55 {
-            // In standard terminal fonts, character cell width is ~half cell height (1:2 aspect ratio).
-            // To produce a visually square artwork box on screen:
-            // inner_height = deck_height - 2
-            // inner_width = inner_height * 2
-            // box_width = inner_width + 2
-            let inner_h = deck_area.height.saturating_sub(2);
-            let art_width = (inner_h * 2 + 2).min(deck_area.width / 3);
+        // Bottom Deck horizontal split: Artwork on left, Controls in middle, Pet on right
+        let inner_h = deck_area.height.saturating_sub(2);
+        let box_width = (inner_h * 2 + 2).min(deck_area.width / 3);
 
-            let deck_chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Length(art_width),
-                    Constraint::Min(30),
-                ])
-                .split(deck_area);
-
-            (Some(deck_chunks[0]), deck_chunks[1])
+        // Terminal width below 55 collapses both side boxes to prioritize player controls
+        let (has_art, has_pet) = if deck_area.width < 55 {
+            (false, false)
         } else {
-            (None, deck_area)
+            match (show_artwork, show_pet) {
+                (true, true) => {
+                    if deck_area.width >= box_width * 2 + 35 {
+                        (true, true)
+                    } else {
+                        (true, false)
+                    }
+                }
+                (true, false) => (true, false),
+                (false, true) => (false, true),
+                (false, false) => (false, false),
+            }
+        };
+
+        let (artwork, player_controls, pet) = match (has_art, has_pet) {
+            (true, true) => {
+                let chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Length(box_width),
+                        Constraint::Min(30),
+                        Constraint::Length(box_width),
+                    ])
+                    .split(deck_area);
+                (Some(chunks[0]), chunks[1], Some(chunks[2]))
+            }
+            (true, false) => {
+                let chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Length(box_width),
+                        Constraint::Min(30),
+                    ])
+                    .split(deck_area);
+                (Some(chunks[0]), chunks[1], None)
+            }
+            (false, true) => {
+                let chunks = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Min(30),
+                        Constraint::Length(box_width),
+                    ])
+                    .split(deck_area);
+                (None, chunks[0], Some(chunks[1]))
+            }
+            (false, false) => (None, deck_area, None),
         };
 
         Self {
@@ -74,6 +110,7 @@ impl AppLayout {
             artwork,
             visualizer,
             player_controls,
+            pet,
             status,
         }
     }

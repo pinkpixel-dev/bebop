@@ -76,6 +76,10 @@ impl HelpOverlay {
                 Span::styled("  o / O          ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
                 Span::styled("Audio output device selector", Style::default().fg(theme.text_muted)),
             ]),
+            Line::from(vec![
+                Span::styled("  x              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+                Span::styled("Toggle dancing ASCII pet", Style::default().fg(theme.text_muted)),
+            ]),
             Line::from(""),
             Line::from(Span::styled("Visuals & Views", Style::default().fg(theme.visualizer_primary).add_modifier(Modifier::BOLD))),
             Line::from(vec![

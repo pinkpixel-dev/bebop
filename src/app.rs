@@ -45,6 +45,7 @@ pub struct App {
     pub visualizer: Box<dyn Visualizer>,
     pub fullscreen_visualizer: bool,
     pub show_artwork: bool,
+    pub show_pet: bool,
     pub show_help: bool,
     pub notifications_enabled: bool,
     pub mpris_enabled: bool,
@@ -123,6 +124,7 @@ impl App {
             visualizer,
             fullscreen_visualizer: false,
             show_artwork: config.ui.artwork,
+            show_pet: config.ui.pet,
             show_help: false,
             notifications_enabled: config.ui.notifications,
             mpris_enabled: config.ui.mpris,
@@ -478,6 +480,10 @@ impl App {
                 self.device_state.close();
                 self.last_art_rendered = None;
             }
+            HitAction::TogglePet => {
+                self.show_pet = !self.show_pet;
+                self.save_config();
+            }
         }
     }
 
@@ -787,6 +793,10 @@ impl App {
                     self.last_art_rendered = None;
                 }
             }
+            KeyCode::Char('x') => {
+                self.show_pet = !self.show_pet;
+                self.save_config();
+            }
             KeyCode::Char('r') => self.player.repeat = self.player.repeat.cycle(),
             KeyCode::Char('s') => self.toggle_shuffle(),
             KeyCode::Char('l') => {
@@ -850,6 +860,7 @@ impl App {
         let active_view = self.active_view;
         let is_fullscreen = self.fullscreen_visualizer;
         let show_art = self.show_artwork;
+        let show_pet = self.show_pet;
 
         terminal.draw(|frame| {
             let area = frame.area();
@@ -876,7 +887,7 @@ impl App {
                             &mut self.hit_zones,
                         );
                     } else {
-                        let layout = AppLayout::calculate(area, show_art);
+                        let layout = AppLayout::calculate(area, show_art, show_pet);
 
                         if let Some(art) = layout.artwork {
                             art_box_rect = Some((art.x + 1, art.y + 1, art.width.saturating_sub(2), art.height.saturating_sub(2)));
@@ -930,6 +941,7 @@ impl App {
         cfg.player.device = self.audio_engine.current_device_name();
         cfg.ui.theme = self.theme.name.to_string();
         cfg.ui.artwork = self.show_artwork;
+        cfg.ui.pet = self.show_pet;
         cfg.ui.notifications = self.notifications_enabled;
         cfg.ui.mpris = self.mpris_enabled;
         cfg.ui.visualizer = match self.visualizer_kind {

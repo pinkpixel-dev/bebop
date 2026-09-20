@@ -36,5 +36,13 @@ All notable changes to Auri are documented in this file.
 - Provide touch and mouse hit zone support for direct device selection and tap-to-open.
 - Automatically fall back to the system default device if a preferred device is unplugged or unavailable.
 
+### 🐾 Dancing ASCII Pet
+- Add audio-reactive dancing ASCII pet with multi-frame bounce and ear wiggle animations reacting to playback tempo and bass energy.
+- Add sleeping state (`( -.- ) zZ`) when playback is paused or stopped.
+- Integrate pet as a dedicated symmetrical box on the right side of the bottom player deck (`[Artwork] [Controls] [Pet]`).
+- Add toggle shortcut `x` and touch hit zone support on both the pet box and status bar badge (`🐾 [x]`).
+- Collapse side boxes automatically on narrow/mobile viewports (< 55 columns) to prioritize transport controls.
+- Persist pet toggle visibility preference in `config.toml` under `[ui.pet]`.
+
 ### 🏷️ Versioning
 - Bump project version to 0.2.0.

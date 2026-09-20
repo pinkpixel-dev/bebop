@@ -222,22 +222,24 @@ fn test_library_and_queue_state() {
 fn test_layout_calculation() {
     // Wide terminal area
     let area = Rect::new(0, 0, 100, 40);
-    let layout = AppLayout::calculate(area, true);
+    let layout = AppLayout::calculate(area, true, false);
 
     assert_eq!(layout.header.height, 3);
     assert_eq!(layout.visualizer.width, 100); // Visualizer now spans full terminal width
     assert!(layout.artwork.is_some());
+    assert!(layout.pet.is_none());
     let art = layout.artwork.unwrap();
     // Inner dimensions preserve 2:1 character cell aspect ratio for 1:1 pixel square
     assert_eq!(art.width - 2, (art.height - 2) * 2);
     assert!(layout.player_controls.height >= 8);
     assert_eq!(layout.status.height, 3);
 
-    // Narrow/mobile terminal area (width < 50): artwork collapses gracefully to prioritize visualizer
+    // Narrow/mobile terminal area (width < 50): artwork and pet collapse gracefully
     let compact_area = Rect::new(0, 0, 45, 24);
-    let compact_layout = AppLayout::calculate(compact_area, true);
+    let compact_layout = AppLayout::calculate(compact_area, true, true);
 
     assert!(compact_layout.artwork.is_none());
+    assert!(compact_layout.pet.is_none());
     assert_eq!(compact_layout.visualizer.width, 45);
 }
 
@@ -1267,6 +1269,138 @@ fn test_device_overlay_rendering() {
     assert!(text.contains("USB Headphones"));
 }
 
+#[test]
+fn test_pet_layout_calculation() {
+    let area = Rect::new(0, 0, 120, 40);
 
+    // Both artwork and pet enabled
+    let layout = AppLayout::calculate(area, true, true);
+    assert!(layout.artwork.is_some());
+    assert!(layout.pet.is_some());
 
+    let art = layout.artwork.unwrap();
+    let pet = layout.pet.unwrap();
 
+    // Symmetrical box widths matching the 1:2 aspect ratio
+    assert_eq!(art.width, pet.width);
+    assert_eq!(art.height, pet.height);
+    assert!(layout.player_controls.width >= 30);
+
+    // Positions: artwork on left, controls in middle, pet on right
+    assert_eq!(art.x, 0);
+    assert_eq!(layout.player_controls.x, art.width);
+    assert_eq!(pet.x, art.width + layout.player_controls.width);
+    assert_eq!(pet.x + pet.width, 120);
+
+    // Pet only (no artwork)
+    let pet_only = AppLayout::calculate(area, false, true);
+    assert!(pet_only.artwork.is_none());
+    assert!(pet_only.pet.is_some());
+    let pet_rect = pet_only.pet.unwrap();
+    assert_eq!(pet_rect.x + pet_rect.width, 120);
+    assert_eq!(pet_only.player_controls.x, 0);
+
+    // Narrow terminal (width < 50) collapses both
+    let narrow_area = Rect::new(0, 0, 45, 24);
+    let narrow_layout = AppLayout::calculate(narrow_area, true, true);
+    assert!(narrow_layout.artwork.is_none());
+    assert!(narrow_layout.pet.is_none());
+}
+
+#[test]
+fn test_pet_config_roundtrip() {
+    use auri::config::AppConfig;
+
+    // Default configuration has pet enabled
+    let cfg = AppConfig::default();
+    assert!(cfg.ui.pet);
+
+    // Parsing TOML with pet explicitly false
+    let toml_str = r#"
+[ui]
+theme = "tokyo_night"
+artwork = true
+visualizer = "bars"
+pet = false
+"#;
+    let parsed: AppConfig = toml::from_str(toml_str).unwrap();
+    assert!(!parsed.ui.pet);
+
+    // Parsing TOML without pet field defaults to true
+    let toml_missing = r#"
+[ui]
+theme = "tokyo_night"
+artwork = true
+visualizer = "bars"
+"#;
+    let parsed_default: AppConfig = toml::from_str(toml_missing).unwrap();
+    assert!(parsed_default.ui.pet);
+}
+
+#[test]
+fn test_pet_view_rendering() {
+    use auri::audio::{AudioFrame, PlaybackState};
+    use auri::player::PlayerState;
+    use auri::theme::Theme;
+    use auri::ui::pet::PetView;
+    use auri::ui::player::HitAction;
+    use ratatui::backend::TestBackend;
+    use ratatui::layout::Rect;
+    use ratatui::Terminal;
+
+    let theme = Theme::vercel_dark();
+    let backend = TestBackend::new(40, 16);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut hit_zones = Vec::new();
+
+    // 1. Render in stopped/paused state (sleeping cat)
+    let player = PlayerState {
+        playback_state: PlaybackState::Stopped,
+        ..Default::default()
+    };
+    let empty_frame = AudioFrame::default();
+
+    terminal
+        .draw(|f| {
+            let area = Rect::new(0, 0, 30, 12);
+            PetView::render(f, area, &player, &empty_frame, &theme, &mut hit_zones);
+        })
+        .unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let text: String = (0..12)
+        .flat_map(|y| (0..30).map(move |x| buffer.cell((x, y)).unwrap().symbol().to_string()))
+        .collect();
+
+    assert!(text.contains("Pet"));
+    assert!(text.contains("zZ") || text.contains("-.-"));
+    assert!(hit_zones.iter().any(|z| z.action == HitAction::TogglePet));
+
+    // 2. Render in active playing state with audio energy (dancing cat)
+    let player_playing = PlayerState {
+        playback_state: PlaybackState::Playing,
+        ..Default::default()
+    };
+    let active_frame = AudioFrame {
+        spectrum: vec![0.8; 64],
+        rms_left: 0.7,
+        rms_right: 0.7,
+        ..Default::default()
+    };
+
+    hit_zones.clear();
+    terminal
+        .draw(|f| {
+            let area = Rect::new(0, 0, 30, 12);
+            PetView::render(f, area, &player_playing, &active_frame, &theme, &mut hit_zones);
+        })
+        .unwrap();
+
+    let buffer2 = terminal.backend().buffer();
+    let text2: String = (0..12)
+        .flat_map(|y| (0..30).map(move |x| buffer2.cell((x, y)).unwrap().symbol().to_string()))
+        .collect();
+
+    assert!(text2.contains("Pet"));
+    assert!(hit_zones.iter().any(|z| z.action == HitAction::TogglePet));
+}

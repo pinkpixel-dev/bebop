@@ -41,6 +41,7 @@ pub enum HitAction {
     OpenDevices,
     DeviceSelect(usize),
     DeviceClose,
+    TogglePet,
 }
 
 pub struct PlayerView;
@@ -69,7 +70,12 @@ impl PlayerView {
         // 4. Player Controls Area
         Self::render_controls(frame, layout.player_controls, player, theme, hit_zones);
 
-        // 5. Status Bar
+        // 5. Pet Area
+        if let Some(pet_area) = layout.pet {
+            crate::ui::PetView::render(frame, pet_area, player, audio_frame, theme, hit_zones);
+        }
+
+        // 6. Status Bar
         Self::render_status(frame, layout.status, player, theme, hit_zones);
     }
 
@@ -389,9 +395,11 @@ impl PlayerView {
             Span::styled(format!("🎧 {} ", device_badge), Style::default().fg(theme.accent)),
             Span::styled("[O]", Style::default().fg(theme.text_muted)),
         ]);
+        let pet_str = "🐾 [x]";
         let right_line = Line::from(vec![
             Span::styled(format!("{}    ", repeat_str), Style::default().fg(theme.text_muted)),
-            Span::styled(format!("{}  ", shuffle_str), Style::default().fg(theme.text_muted)),
+            Span::styled(format!("{}    ", shuffle_str), Style::default().fg(theme.text_muted)),
+            Span::styled(format!("{}  ", pet_str), Style::default().fg(theme.accent)),
         ]);
 
         frame.render_widget(Paragraph::new(left_line).alignment(Alignment::Left), inner);
@@ -401,16 +409,16 @@ impl PlayerView {
         let dev_badge_str = format!("🎧 {} [O]", device_badge);
         let dev_badge_len = dev_badge_str.chars().count() as u16;
         let dev_start_x = inner.left() + 2 + tech_details.chars().count() as u16 + 5;
-        if dev_start_x + dev_badge_len < inner.right().saturating_sub(30) {
+        if dev_start_x + dev_badge_len < inner.right().saturating_sub(40) {
             hit_zones.push(HitZone {
                 rect: Rect::new(dev_start_x, inner.top(), dev_badge_len, 1),
                 action: HitAction::OpenDevices,
             });
         }
 
-        // Register hit zones for repeat and shuffle clicks
-        if inner.width > 30 {
-            let right_start = inner.right().saturating_sub(26);
+        // Register hit zones for repeat, shuffle, and pet toggle clicks
+        if inner.width > 42 {
+            let right_start = inner.right().saturating_sub(38);
             hit_zones.push(HitZone {
                 rect: Rect::new(right_start, inner.top(), 12, 1),
                 action: HitAction::ToggleRepeat,
@@ -418,6 +426,10 @@ impl PlayerView {
             hit_zones.push(HitZone {
                 rect: Rect::new(right_start + 13, inner.top(), 13, 1),
                 action: HitAction::ToggleShuffle,
+            });
+            hit_zones.push(HitZone {
+                rect: Rect::new(right_start + 28, inner.top(), 8, 1),
+                action: HitAction::TogglePet,
             });
         }
     }
