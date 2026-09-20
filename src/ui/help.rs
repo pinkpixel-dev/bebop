@@ -84,7 +84,7 @@ impl HelpOverlay {
             ]),
             Line::from(vec![
                 Span::styled("  t              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-                Span::styled("Cycle theme palette (Dark / Ice / Sunset / Mono)", Style::default().fg(theme.text_muted)),
+                Span::styled("Cycle theme palette (Neon / Dark / Ice / Sunset / Candy / Matrix / Mono / Album)", Style::default().fg(theme.text_muted)),
             ]),
             Line::from(vec![
                 Span::styled("  a              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),

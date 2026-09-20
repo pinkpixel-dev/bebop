@@ -144,22 +144,96 @@ impl Theme {
         }
     }
 
+    pub fn candy() -> Self {
+        Self {
+            name: "Candy",
+            is_rainbow: false,
+            bg: Color::Rgb(20, 18, 24),
+            surface: Color::Rgb(28, 24, 34),
+            border: Color::Rgb(65, 48, 75),
+            border_focused: Color::Rgb(244, 114, 182), // Bubblegum pink
+            text: Color::Rgb(250, 245, 255),
+            text_muted: Color::Rgb(165, 150, 180),
+            text_dim: Color::Rgb(105, 95, 115),
+            accent: Color::Rgb(244, 114, 182),
+            visualizer_primary: Color::Rgb(244, 114, 182),
+            visualizer_secondary: Color::Rgb(56, 189, 248), // Candy cyan
+            visualizer_peak: Color::Rgb(253, 224, 71), // Candy lemon
+            progress_elapsed: Color::Rgb(244, 114, 182),
+            progress_remaining: Color::Rgb(50, 40, 58),
+            progress_thumb: Color::Rgb(250, 245, 255),
+        }
+    }
+
+    pub fn matrix() -> Self {
+        Self {
+            name: "Matrix",
+            is_rainbow: false,
+            bg: Color::Rgb(12, 18, 14),
+            surface: Color::Rgb(18, 26, 20),
+            border: Color::Rgb(35, 55, 40),
+            border_focused: Color::Rgb(34, 197, 94), // Phosphor green
+            text: Color::Rgb(240, 255, 240),
+            text_muted: Color::Rgb(130, 175, 145),
+            text_dim: Color::Rgb(70, 105, 80),
+            accent: Color::Rgb(34, 197, 94),
+            visualizer_primary: Color::Rgb(34, 197, 94),
+            visualizer_secondary: Color::Rgb(21, 128, 61), // Deep emerald
+            visualizer_peak: Color::Rgb(134, 239, 172), // Mint lime
+            progress_elapsed: Color::Rgb(34, 197, 94),
+            progress_remaining: Color::Rgb(30, 45, 35),
+            progress_thumb: Color::Rgb(240, 255, 240),
+        }
+    }
+
+    pub fn album(palette: Option<crate::theme::extractor::ExtractedPalette>) -> Self {
+        let p = palette.unwrap_or_default();
+        Self {
+            name: "Album",
+            is_rainbow: false,
+            bg: Color::Rgb(18, 18, 20),
+            surface: Color::Rgb(26, 26, 30),
+            border: Color::Rgb(48, 48, 54),
+            border_focused: p.primary,
+            text: Color::Rgb(245, 245, 247),
+            text_muted: Color::Rgb(150, 150, 160),
+            text_dim: Color::Rgb(90, 90, 100),
+            accent: p.primary,
+            visualizer_primary: p.primary,
+            visualizer_secondary: p.secondary,
+            visualizer_peak: p.peak,
+            progress_elapsed: p.primary,
+            progress_remaining: Color::Rgb(55, 55, 65),
+            progress_thumb: Color::Rgb(255, 255, 255),
+        }
+    }
+
     pub fn from_name(name: &str) -> Self {
         match name.to_lowercase().as_str() {
             "vercel dark" | "vercel" => Self::vercel_dark(),
             "ice" => Self::ice(),
             "sunset" => Self::sunset(),
+            "candy" => Self::candy(),
+            "matrix" => Self::matrix(),
             "mono" => Self::mono(),
+            "album" | "adaptive" => Self::album(None),
             _ => Self::neon_rainbow(),
         }
     }
 
     pub fn cycle_next(&self) -> Self {
+        self.cycle_next_with_palette(None)
+    }
+
+    pub fn cycle_next_with_palette(&self, palette: Option<crate::theme::extractor::ExtractedPalette>) -> Self {
         match self.name {
             "Neon Rainbow" => Self::vercel_dark(),
             "Vercel Dark" => Self::ice(),
             "Ice" => Self::sunset(),
-            "Sunset" => Self::mono(),
+            "Sunset" => Self::candy(),
+            "Candy" => Self::matrix(),
+            "Matrix" => Self::mono(),
+            "Mono" => Self::album(palette),
             _ => Self::neon_rainbow(),
         }
     }

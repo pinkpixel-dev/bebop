@@ -10,7 +10,7 @@ use crate::config::AppConfig;
 use crate::library::{MetadataReader, SearchState, Track};
 use crate::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use crate::terminal::{KittyRenderer, TerminalDetector, TerminalGraphics};
-use crate::theme::Theme;
+use crate::theme::{extract_palette, ExtractedPalette, Theme};
 use crate::ui::player::{HitAction, HitZone, PlayerView};
 use crate::ui::{AppLayout, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, QueueState, QueueView, SearchOverlay};
 use crate::visualizers::bars::BarsVisualizer;
@@ -43,6 +43,7 @@ pub struct App {
     pub should_quit: bool,
     pub terminal_graphics: TerminalGraphics,
     pub artwork_png: Option<Vec<u8>>,
+    pub current_palette: Option<ExtractedPalette>,
     hit_zones: Vec<HitZone>,
     last_art_rendered: Option<(u16, u16, u16, u16)>,
     pub config: AppConfig,
@@ -100,6 +101,7 @@ impl App {
             should_quit: false,
             terminal_graphics: graphics,
             artwork_png: None,
+            current_palette: None,
             hit_zones: Vec::new(),
             last_art_rendered: None,
             config,
@@ -143,17 +145,26 @@ impl App {
 
         // Process artwork image
         self.artwork_png = None;
+        self.current_palette = None;
         self.last_art_rendered = None;
         let _ = KittyRenderer::clear_all();
 
         if let Some(bytes) = art_data {
             if let Ok(img) = image::load_from_memory(&bytes) {
+                let palette = extract_palette(&img);
+                self.current_palette = Some(palette);
+
                 let resized = img.resize_exact(300, 300, image::imageops::FilterType::Triangle);
                 let mut png_buf = Cursor::new(Vec::new());
                 if resized.write_to(&mut png_buf, image::ImageFormat::Png).is_ok() {
                     self.artwork_png = Some(png_buf.into_inner());
                 }
             }
+        }
+
+        // If currently in Album theme, update theme colors dynamically from the new track's artwork
+        if self.theme.name == "Album" {
+            self.theme = Theme::album(self.current_palette);
         }
 
         self.player.current_track = Some(track.clone());
@@ -261,7 +272,7 @@ impl App {
     }
 
     pub fn cycle_theme(&mut self) {
-        self.theme = self.theme.cycle_next();
+        self.theme = self.theme.cycle_next_with_palette(self.current_palette);
     }
 
     pub fn handle_action(&mut self, action: HitAction) {

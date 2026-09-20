@@ -125,10 +125,19 @@ fn test_theme_cycling() {
     assert_eq!(theme4.name, "Sunset");
 
     let theme5 = theme4.cycle_next();
-    assert_eq!(theme5.name, "Mono");
+    assert_eq!(theme5.name, "Candy");
 
     let theme6 = theme5.cycle_next();
-    assert_eq!(theme6.name, "Neon Rainbow");
+    assert_eq!(theme6.name, "Matrix");
+
+    let theme7 = theme6.cycle_next();
+    assert_eq!(theme7.name, "Mono");
+
+    let theme8 = theme7.cycle_next();
+    assert_eq!(theme8.name, "Album");
+
+    let theme9 = theme8.cycle_next();
+    assert_eq!(theme9.name, "Neon Rainbow");
 }
 
 #[test]
@@ -367,8 +376,17 @@ fn test_theme_from_name() {
     let t_sunset = Theme::from_name("Sunset");
     assert_eq!(t_sunset.name, "Sunset");
 
+    let t_candy = Theme::from_name("Candy");
+    assert_eq!(t_candy.name, "Candy");
+
+    let t_matrix = Theme::from_name("Matrix");
+    assert_eq!(t_matrix.name, "Matrix");
+
     let t_mono = Theme::from_name("Mono");
     assert_eq!(t_mono.name, "Mono");
+
+    let t_album = Theme::from_name("Album");
+    assert_eq!(t_album.name, "Album");
 
     let t_unknown = Theme::from_name("NonExistentTheme");
     assert_eq!(t_unknown.name, "Neon Rainbow");
@@ -477,4 +495,46 @@ fn test_vu_meter_visualizer() {
     assert!(rendered_text.contains('L'), "VU meter should contain Left channel indicator");
     assert!(rendered_text.contains('R'), "VU meter should contain Right channel indicator");
     assert!(rendered_text.contains("CLIP"), "Left channel should trigger CLIP indicator");
+}
+
+#[test]
+fn test_artwork_palette_extraction() {
+    use auri::theme::extract_palette;
+    use image::{DynamicImage, RgbaImage, Rgba};
+    use ratatui::style::Color;
+
+    let mut img = RgbaImage::new(48, 48);
+    for y in 0..48 {
+        for x in 0..48 {
+            if x < 24 {
+                img.put_pixel(x, y, Rgba([0, 120, 255, 255]));
+            } else {
+                img.put_pixel(x, y, Rgba([255, 200, 0, 255]));
+            }
+        }
+    }
+
+    let dyn_img = DynamicImage::ImageRgba8(img);
+    let palette = extract_palette(&dyn_img);
+
+    assert_ne!(palette.primary, palette.secondary);
+    assert_ne!(palette.peak, Color::Rgb(0, 0, 0));
+}
+
+#[test]
+fn test_artwork_palette_extraction_grayscale() {
+    use auri::theme::extract_palette;
+    use image::{DynamicImage, RgbaImage, Rgba};
+
+    let mut img = RgbaImage::new(48, 48);
+    for y in 0..48 {
+        for x in 0..48 {
+            img.put_pixel(x, y, Rgba([128, 128, 128, 255]));
+        }
+    }
+
+    let dyn_img = DynamicImage::ImageRgba8(img);
+    let palette = extract_palette(&dyn_img);
+
+    assert_ne!(palette.primary, palette.secondary);
 }
