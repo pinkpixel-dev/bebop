@@ -654,6 +654,7 @@ impl App {
         if self.active_view == View::Player && !self.fullscreen_visualizer && !self.search_state.is_open && self.show_artwork && self.terminal_graphics == TerminalGraphics::Kitty {
             if let (Some(rect), Some(png)) = (art_box_rect, &self.artwork_png) {
                 if self.last_art_rendered != Some(rect) {
+                    let _ = KittyRenderer::clear_all();
                     let _ = KittyRenderer::render_png(png, rect.0, rect.1, rect.2, rect.3);
                     self.last_art_rendered = Some(rect);
                 }

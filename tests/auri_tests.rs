@@ -223,9 +223,12 @@ fn test_layout_calculation() {
     let layout = AppLayout::calculate(area, true);
 
     assert_eq!(layout.header.height, 3);
+    assert_eq!(layout.visualizer.width, 100); // Visualizer now spans full terminal width
     assert!(layout.artwork.is_some());
-    assert!(layout.visualizer.width >= 20);
-    assert_eq!(layout.player_controls.height, 7);
+    let art = layout.artwork.unwrap();
+    // Inner dimensions preserve 2:1 character cell aspect ratio for 1:1 pixel square
+    assert_eq!(art.width - 2, (art.height - 2) * 2);
+    assert!(layout.player_controls.height >= 8);
     assert_eq!(layout.status.height, 3);
 
     // Narrow/mobile terminal area (width < 50): artwork collapses gracefully to prioritize visualizer
