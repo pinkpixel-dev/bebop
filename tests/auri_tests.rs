@@ -247,3 +247,12 @@ fn test_metadata_and_decoder_probe() {
         assert!(read > 0, "Expected decoder to decode audio frames");
     }
 }
+
+#[test]
+fn test_audio_engine_stop_and_finish_flag() {
+    if let Ok(mut engine) = auri::audio::AudioEngine::new() {
+        assert!(!engine.is_finished());
+        engine.stop();
+        assert!(!engine.is_finished());
+    }
+}

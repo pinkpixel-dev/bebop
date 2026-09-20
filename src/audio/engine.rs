@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -27,6 +27,7 @@ struct EngineShared {
     state: Mutex<PlaybackState>,
     seek_target: Mutex<Option<Duration>>,
     track_finished: AtomicBool,
+    generation: AtomicU64,
 }
 
 pub struct AudioEngine {
@@ -34,7 +35,8 @@ pub struct AudioEngine {
     _output: Option<AudioOutput>,
     analyzer: AudioAnalyzer,
     output_controls: Option<Arc<OutputControls>>,
-    _worker_handle: Option<JoinHandle<()>>,
+    worker_handle: Option<JoinHandle<()>>,
+    worker_stop: Option<Arc<AtomicBool>>,
     running: Arc<AtomicBool>,
     _current_path: Option<PathBuf>,
 }
@@ -51,6 +53,7 @@ impl AudioEngine {
             state: Mutex::new(PlaybackState::Stopped),
             seek_target: Mutex::new(None),
             track_finished: AtomicBool::new(false),
+            generation: AtomicU64::new(0),
         });
 
         let shared_output = Arc::clone(&shared);
@@ -86,10 +89,26 @@ impl AudioEngine {
             _output: output,
             analyzer,
             output_controls,
-            _worker_handle: None,
+            worker_handle: None,
+            worker_stop: None,
             running,
             _current_path: None,
         })
+    }
+
+    fn stop_worker(&mut self) {
+        // Invalidate current generation so the running worker immediately ignores shared state
+        self.shared.generation.fetch_add(1, Ordering::SeqCst);
+
+        // Signal worker cancellation
+        if let Some(stop) = self.worker_stop.take() {
+            stop.store(true, Ordering::SeqCst);
+        }
+
+        // Wait for worker to finish cleanly
+        if let Some(handle) = self.worker_handle.take() {
+            let _ = handle.join();
+        }
     }
 
     pub fn play_file<P: AsRef<Path>>(&mut self, path: P) -> Result<(), anyhow::Error> {
@@ -100,6 +119,10 @@ impl AudioEngine {
         let sample_rate = decoder.sample_rate();
         let channels = decoder.channels();
         let duration = decoder.duration();
+
+        let current_gen = self.shared.generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let worker_stop = Arc::new(AtomicBool::new(false));
+        self.worker_stop = Some(Arc::clone(&worker_stop));
 
         *self.shared.sample_rate.lock().unwrap() = sample_rate;
         *self.shared.channels.lock().unwrap() = channels;
@@ -121,7 +144,11 @@ impl AudioEngine {
         let handle = thread::spawn(move || {
             let mut read_buf = vec![0.0f32; 4096];
 
-            while running.load(Ordering::Relaxed) {
+            while running.load(Ordering::Relaxed) && !worker_stop.load(Ordering::Relaxed) {
+                if shared.generation.load(Ordering::Relaxed) != current_gen {
+                    break;
+                }
+
                 // Check if playback was stopped
                 let state = *shared.state.lock().unwrap();
                 if state == PlaybackState::Stopped {
@@ -136,12 +163,15 @@ impl AudioEngine {
 
                 if let Some(target) = seek_req {
                     let _ = decoder.seek(target);
+                    if shared.generation.load(Ordering::Relaxed) != current_gen || worker_stop.load(Ordering::Relaxed) {
+                        break;
+                    }
                     shared.ring_buffer.lock().unwrap().clear();
                     *shared.current_time_ms.lock().unwrap() = target.as_millis() as u64;
                 }
 
                 if state == PlaybackState::Paused {
-                    thread::sleep(Duration::from_millis(20));
+                    thread::sleep(Duration::from_millis(15));
                     continue;
                 }
 
@@ -153,15 +183,25 @@ impl AudioEngine {
                 }
 
                 let frames_read = decoder.read_samples(&mut read_buf);
+                if shared.generation.load(Ordering::Relaxed) != current_gen || worker_stop.load(Ordering::Relaxed) {
+                    break;
+                }
+
                 if frames_read == 0 {
                     // Check if ring buffer has emptied
                     if shared.ring_buffer.lock().unwrap().is_empty() {
-                        shared.track_finished.store(true, Ordering::SeqCst);
-                        *shared.state.lock().unwrap() = PlaybackState::Stopped;
+                        if shared.generation.load(Ordering::Relaxed) == current_gen && !worker_stop.load(Ordering::Relaxed) {
+                            shared.track_finished.store(true, Ordering::SeqCst);
+                            *shared.state.lock().unwrap() = PlaybackState::Stopped;
+                        }
                         break;
                     }
-                    thread::sleep(Duration::from_millis(20));
+                    thread::sleep(Duration::from_millis(15));
                     continue;
+                }
+
+                if shared.generation.load(Ordering::Relaxed) != current_gen || worker_stop.load(Ordering::Relaxed) {
+                    break;
                 }
 
                 let mut ring = shared.ring_buffer.lock().unwrap();
@@ -170,7 +210,7 @@ impl AudioEngine {
             }
         });
 
-        self._worker_handle = Some(handle);
+        self.worker_handle = Some(handle);
         Ok(())
     }
 
@@ -204,12 +244,14 @@ impl AudioEngine {
     }
 
     pub fn stop(&mut self) {
+        self.stop_worker();
         *self.shared.state.lock().unwrap() = PlaybackState::Stopped;
         if let Some(controls) = &self.output_controls {
             controls.set_paused(true);
         }
         self.shared.ring_buffer.lock().unwrap().clear();
         self.shared.analysis_samples.lock().unwrap().clear();
+        self.shared.track_finished.store(false, Ordering::SeqCst);
     }
 
     pub fn seek_to(&self, target: Duration) {
@@ -267,7 +309,7 @@ impl AudioEngine {
     }
 
     pub fn is_finished(&self) -> bool {
-        self.shared.track_finished.load(Ordering::SeqCst)
+        self.shared.track_finished.swap(false, Ordering::SeqCst)
     }
 
     /// Fetches the latest computed AudioFrame for visualizers.
@@ -283,7 +325,7 @@ impl AudioEngine {
 
 impl Drop for AudioEngine {
     fn drop(&mut self) {
+        self.stop();
         self.running.store(false, Ordering::Relaxed);
-        *self.shared.state.lock().unwrap() = PlaybackState::Stopped;
     }
 }

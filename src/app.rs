@@ -126,9 +126,10 @@ impl App {
         self.player.position = Duration::ZERO;
         self.player.duration = self.audio_engine.duration();
 
-        // If queue does not contain this track, add it
-        let in_queue = self.queue.tracks.iter().any(|t| t.path == track.path);
-        if !in_queue {
+        // If track is in queue, sync current_index; otherwise add it
+        if let Some(idx) = self.queue.tracks.iter().position(|t| t.path == track.path) {
+            self.queue.current_index = Some(idx);
+        } else {
             self.queue.add_track(track);
         }
 
