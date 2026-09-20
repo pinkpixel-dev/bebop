@@ -9,6 +9,7 @@ use crate::audio::{AudioEngine, PlaybackState};
 use crate::config::AppConfig;
 use crate::library::{MetadataReader, SearchState, Track};
 use crate::lyrics::{Lyrics, LyricsState};
+use crate::mpris::{MprisAction, MprisService};
 use crate::notifications::NotificationManager;
 use crate::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use crate::terminal::{KittyRenderer, TerminalDetector, TerminalGraphics};
@@ -46,6 +47,8 @@ pub struct App {
     pub show_artwork: bool,
     pub show_help: bool,
     pub notifications_enabled: bool,
+    pub mpris_enabled: bool,
+    pub mpris_service: Option<MprisService>,
     pub search_state: SearchState,
     pub should_quit: bool,
     pub terminal_graphics: TerminalGraphics,
@@ -99,6 +102,12 @@ impl App {
         let mut queue = Queue::new();
         queue.set_shuffle(config.player.shuffle);
 
+        let mpris_service = if config.ui.mpris {
+            MprisService::new()
+        } else {
+            None
+        };
+
         Ok(Self {
             player,
             queue,
@@ -114,6 +123,8 @@ impl App {
             show_artwork: config.ui.artwork,
             show_help: false,
             notifications_enabled: config.ui.notifications,
+            mpris_enabled: config.ui.mpris,
+            mpris_service,
             search_state: SearchState::new(),
             should_quit: false,
             terminal_graphics: graphics,
@@ -198,6 +209,11 @@ impl App {
             NotificationManager::send_track_notification(&track);
         }
 
+        // Sync track state to MPRIS if enabled
+        if let Some(mpris) = &self.mpris_service {
+            mpris.update_state(&self.player, self.player.current_track.as_ref());
+        }
+
         // If track is in queue, sync current_index; otherwise add it
         if let Some(idx) = self.queue.tracks.iter().position(|t| t.path == track.path) {
             self.queue.current_index = Some(idx);
@@ -247,6 +263,74 @@ impl App {
         }
         self.player.volume = self.audio_engine.volume();
         self.player.muted = self.audio_engine.is_muted();
+
+        // Drain and process MPRIS D-Bus actions
+        let actions: Vec<MprisAction> = if let Some(mpris) = &self.mpris_service {
+            mpris.action_rx.try_iter().collect()
+        } else {
+            Vec::new()
+        };
+
+        for action in actions {
+            match action {
+                MprisAction::Play => {
+                    if self.player.playback_state == PlaybackState::Paused {
+                        self.toggle_play_pause();
+                    } else if self.player.playback_state == PlaybackState::Stopped {
+                        if let Some(cur) = self.queue.current_track().cloned() {
+                            let _ = self.play_track_file(&cur.path);
+                        }
+                    }
+                }
+                MprisAction::Pause => {
+                    if self.player.playback_state == PlaybackState::Playing {
+                        self.toggle_play_pause();
+                    }
+                }
+                MprisAction::PlayPause => {
+                    if self.player.playback_state == PlaybackState::Stopped {
+                        if let Some(cur) = self.queue.current_track().cloned() {
+                            let _ = self.play_track_file(&cur.path);
+                        }
+                    } else {
+                        self.toggle_play_pause();
+                    }
+                }
+                MprisAction::Stop => {
+                    self.audio_engine.stop();
+                    self.player.playback_state = PlaybackState::Stopped;
+                }
+                MprisAction::Next => {
+                    self.next_track();
+                }
+                MprisAction::Previous => {
+                    self.prev_track();
+                }
+                MprisAction::Seek(offset_usec) => {
+                    let cur_usec = self.player.position.as_micros() as i64;
+                    let target_usec = (cur_usec + offset_usec).max(0);
+                    let target = Duration::from_micros(target_usec as u64);
+                    self.audio_engine.seek_to(target);
+                    self.player.position = target;
+                }
+                MprisAction::SetPosition(pos) => {
+                    self.audio_engine.seek_to(pos);
+                    self.player.position = pos;
+                }
+                MprisAction::SetVolume(vol) => {
+                    let clamped = vol.clamp(0.0, 1.0) as f32;
+                    self.audio_engine.set_volume(clamped);
+                    self.player.volume = clamped;
+                }
+                MprisAction::Quit => {
+                    self.should_quit = true;
+                }
+            }
+        }
+
+        if let Some(mpris) = &self.mpris_service {
+            mpris.update_state(&self.player, self.player.current_track.as_ref());
+        }
 
         // Check if track reached end
         if self.audio_engine.is_finished() {
@@ -779,6 +863,7 @@ impl App {
         cfg.ui.theme = self.theme.name.to_string();
         cfg.ui.artwork = self.show_artwork;
         cfg.ui.notifications = self.notifications_enabled;
+        cfg.ui.mpris = self.mpris_enabled;
         cfg.ui.visualizer = match self.visualizer_kind {
             VisualizerKind::Bars => "bars".to_string(),
             VisualizerKind::Mirrored => "mirrored".to_string(),

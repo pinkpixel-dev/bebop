@@ -213,6 +213,7 @@ dependencies = [
  "symphonia",
  "toml",
  "unicode-width 0.2.0",
+ "zbus",
 ]
 
 [[package]]

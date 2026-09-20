@@ -17,6 +17,7 @@ Auri combines real-time spectrum analysis, embedded album artwork via the Kitty 
 - **Active Queue Management:** Inspect the queue (`3`), reorder, remove items (`d`), clear (`c`), or shuffle (`s`).
 - **Synchronized Lyrics:** Reads companion `.lrc` files and embedded lyric tags with real-time center-scrolling and tap-to-seek (`4` or `l`).
 - **Desktop Notifications:** Displays track title, artist, album, and duration on track changes via desktop notifications.
+- **Linux MPRIS / D-Bus Integration:** Control playback with desktop media keys, `playerctl`, GNOME/KDE media widgets, and lock screens.
 - **Full-Screen Visualizer Mode:** Press `f` for a focused visualizer experience with a minimal now-playing footer.
 - **Touch & Mouse Support:** Click or tap progress bars to seek, drag volume, tap transport buttons, switch tabs, or cycle visualizers.
 - **Sleek Minimal Aesthetics:** Charcoal dark palette (`#121214`) with crisp typography and vibrant accent palettes.
@@ -128,6 +129,18 @@ auri
 | `n` / `p` | Tap Next/Prev button | Next or previous track |
 | `1` / `l` / `Esc` | Tap Player tab | Return to Player view |
 
+### Linux MPRIS & Media Keys
+
+Auri implements the standard MPRIS D-Bus interface (`org.mpris.MediaPlayer2` and `org.mpris.MediaPlayer2.Player`). You can control playback using your desktop keyboard media keys, lock screen widgets, or `playerctl`:
+
+```bash
+playerctl play-pause
+playerctl next
+playerctl previous
+playerctl position 30
+playerctl metadata
+```
+
 ## Architecture
 
 Auri separates playback, analysis, and rendering into distinct layers:
@@ -137,6 +150,7 @@ Auri separates playback, analysis, and rendering into distinct layers:
 3. **Playlists & Library (`src/player/playlist.rs`, `src/ui/library.rs`):** Parses and writes standard M3U/M3U8 playlists, manages user playlists in `~/.config/auri/playlists/`, and provides folder navigation.
 4. **Ratatui Interface (`src/ui/`):** Computes responsive layout areas, renders custom widgets directly to the terminal buffer, and collects click hit zones for mobile/mouse interactions.
 5. **Kitty Protocol (`src/terminal/`):** Transmits base64-encoded PNG image chunks directly to the terminal window and manages cleanup on view changes.
+6. **Linux MPRIS Service (`src/mpris.rs`):** Serves `org.mpris.MediaPlayer2` on session D-Bus, routing player actions across an unbounded crossbeam channel to the main loop with zero audio or render latency.
 
 ## License
 

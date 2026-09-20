@@ -974,4 +974,131 @@ fn test_non_blocking_notification_dispatch() {
     NotificationManager::send_track_notification(&track);
 }
 
+#[test]
+fn test_mpris_state_metadata_dictionary() {
+    use auri::mpris::MprisState;
+    use std::time::Duration;
+
+    let mut state = MprisState::default();
+    state.track_title = "Neon Nights".to_string();
+    state.track_artist = "Synthwave Boy".to_string();
+    state.track_album = "Cyberpunk 2088".to_string();
+    state.track_duration = Duration::from_secs(185);
+    state.track_path = Some("/music/synth.flac".to_string());
+
+    let dict = state.metadata_dict();
+    assert!(dict.contains_key("mpris:trackid"));
+    assert!(dict.contains_key("mpris:length"));
+    assert_eq!(
+        dict.get("xesam:title").and_then(|v| <&str>::try_from(v).ok()),
+        Some("Neon Nights")
+    );
+    assert_eq!(
+        dict.get("xesam:album").and_then(|v| <&str>::try_from(v).ok()),
+        Some("Cyberpunk 2088")
+    );
+    assert_eq!(
+        dict.get("xesam:url").and_then(|v| <&str>::try_from(v).ok()),
+        Some("file:///music/synth.flac")
+    );
+    assert_eq!(
+        dict.get("mpris:length").and_then(|v| i64::try_from(v).ok()),
+        Some(185_000_000)
+    );
+}
+
+#[test]
+fn test_mpris_action_channel_dispatch() {
+    use auri::mpris::MprisAction;
+    use std::time::Duration;
+
+    let (tx, rx) = crossbeam_channel::unbounded();
+
+    let actions = vec![
+        MprisAction::Play,
+        MprisAction::Pause,
+        MprisAction::PlayPause,
+        MprisAction::Stop,
+        MprisAction::Next,
+        MprisAction::Previous,
+        MprisAction::Seek(5_000_000),
+        MprisAction::SetPosition(Duration::from_secs(42)),
+        MprisAction::SetVolume(0.85),
+        MprisAction::Quit,
+    ];
+
+    for act in &actions {
+        tx.send(act.clone()).expect("send action");
+    }
+
+    let received: Vec<MprisAction> = rx.try_iter().collect();
+    assert_eq!(actions, received);
+}
+
+#[test]
+fn test_mpris_config_roundtrip() {
+    use auri::config::AppConfig;
+
+    let toml_str = r#"
+[player]
+volume = 0.9
+repeat = "all"
+shuffle = false
+
+[ui]
+theme = "Vercel Dark"
+artwork = true
+visualizer = "bars"
+notifications = true
+mpris = false
+
+[library]
+paths = []
+"#;
+
+    let cfg: AppConfig = toml::from_str(toml_str).expect("deserialize config");
+    assert!(!cfg.ui.mpris);
+
+    // Verify default when mpris is omitted
+    let toml_default = r#"
+[ui]
+theme = "Vercel Dark"
+artwork = true
+visualizer = "bars"
+"#;
+    let cfg_default: AppConfig = toml::from_str(toml_default).expect("deserialize config default");
+    assert!(cfg_default.ui.mpris);
+
+    // Verify serialization roundtrip
+    let serialized = toml::to_string(&cfg).expect("serialize config");
+    assert!(serialized.contains("mpris = false"));
+}
+
+#[test]
+fn test_mpris_state_update() {
+    use auri::mpris::MprisService;
+    use auri::player::{PlayerState, RepeatMode};
+    use auri::audio::PlaybackState;
+    use auri::library::Track;
+    use std::time::Duration;
+
+    if let Some(service) = MprisService::new() {
+        let mut player = PlayerState::default();
+        player.playback_state = PlaybackState::Playing;
+        player.repeat = RepeatMode::One;
+        player.shuffle = true;
+        player.volume = 0.75;
+        player.position = Duration::from_secs(30);
+        player.duration = Duration::from_secs(180);
+
+        let mut track = Track::new("/music/track1.mp3");
+        track.title = "Test Song".to_string();
+        track.artist = "Test Artist".to_string();
+        track.album = "Test Album".to_string();
+
+        service.update_state(&player, Some(&track));
+    }
+}
+
+
 

@@ -19,5 +19,14 @@ All notable changes to Auri are documented in this file.
 - Add configuration toggle `notifications = true/false` under `[ui]` in `config.toml`.
 - Gracefully handle environments without a running D-Bus notification server.
 
+### 🎛️ MPRIS & D-Bus
+- Add Linux MPRIS integration exposing `org.mpris.MediaPlayer2` and `org.mpris.MediaPlayer2.Player` on the session D-Bus.
+- Support external control via desktop keyboard media keys, `playerctl`, lock screen widgets, and GNOME/KDE media overlays.
+- Decouple D-Bus actions into an unbounded crossbeam channel processed in the main event loop with zero UI or audio latency.
+- Provide full playback control: play, pause, play-pause toggle, stop, next track, previous track, seek, position, volume, and quit.
+- Expose synchronized track metadata dictionary including title, artist, album, duration, and file URI.
+- Add configuration toggle `mpris = true/false` under `[ui]` in `config.toml`.
+- Gracefully detect headless servers, SSH sessions, and environments without D-Bus.
+
 ### 🏷️ Versioning
 - Bump project version to 0.2.0.
