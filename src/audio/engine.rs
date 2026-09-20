@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -9,6 +9,12 @@ use crate::audio::analysis::AudioAnalyzer;
 use crate::audio::decoder::AudioDecoder;
 use crate::audio::frame::AudioFrame;
 use crate::audio::output::{AudioOutput, OutputControls};
+use crate::audio::resample::LinearResampler;
+
+/// Fallback output rate used only when no device could be opened.
+const DEFAULT_DEVICE_RATE: u32 = 44100;
+/// Starting bin count for the analyzer. Visualizers override this per frame.
+const ANALYZER_BINS: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlaybackState {
@@ -24,6 +30,9 @@ struct EngineShared {
     duration_ms: Mutex<u64>,
     sample_rate: Mutex<u32>,
     channels: Mutex<usize>,
+    /// Sample rate of the active output stream. The decode worker resamples to
+    /// this rate, and it changes when the user switches output device.
+    device_rate: AtomicU32,
     state: Mutex<PlaybackState>,
     seek_target: Mutex<Option<Duration>>,
     track_finished: AtomicBool,
@@ -34,6 +43,7 @@ pub struct AudioEngine {
     shared: Arc<EngineShared>,
     output: Option<AudioOutput>,
     analyzer: AudioAnalyzer,
+    device_rate: u32,
     output_controls: Option<Arc<OutputControls>>,
     worker_handle: Option<JoinHandle<()>>,
     worker_stop: Option<Arc<AtomicBool>>,
@@ -59,13 +69,13 @@ impl AudioEngine {
             seek_target: Mutex::new(None),
             track_finished: AtomicBool::new(false),
             generation: AtomicU64::new(0),
+            device_rate: AtomicU32::new(DEFAULT_DEVICE_RATE),
         });
 
         let shared_output = Arc::clone(&shared);
-        let sample_rate = 44100;
 
         // CPAL output pulling samples from shared ring buffer
-        let output = AudioOutput::new(sample_rate, preferred_device, move |out: &mut [f32]| {
+        let output = AudioOutput::new(preferred_device, move |out: &mut [f32]| {
             let mut ring = shared_output.ring_buffer.lock().unwrap();
             let mut analysis = shared_output.analysis_samples.lock().unwrap();
 
@@ -87,13 +97,19 @@ impl AudioEngine {
 
         let current_device_name = output.as_ref().map(|o| o.device_name.clone());
         let output_controls = output.as_ref().map(|o| Arc::clone(&o.controls));
-        let analyzer = AudioAnalyzer::new(sample_rate, 64);
+        let device_rate = output
+            .as_ref()
+            .map(|o| o.device_sample_rate)
+            .unwrap_or(DEFAULT_DEVICE_RATE);
+        shared.device_rate.store(device_rate, Ordering::SeqCst);
+        let analyzer = AudioAnalyzer::new(device_rate, ANALYZER_BINS);
         let running = Arc::new(AtomicBool::new(true));
 
         Ok(Self {
             shared,
             output,
             analyzer,
+            device_rate,
             output_controls,
             worker_handle: None,
             worker_stop: None,
@@ -114,9 +130,8 @@ impl AudioEngine {
         self.output_controls = None;
 
         let shared_output = Arc::clone(&self.shared);
-        let sample_rate = 44100;
 
-        let new_output = AudioOutput::new(sample_rate, device_name, move |out: &mut [f32]| {
+        let new_output = AudioOutput::new(device_name, move |out: &mut [f32]| {
             let mut ring = shared_output.ring_buffer.lock().unwrap();
             let mut analysis = shared_output.analysis_samples.lock().unwrap();
 
@@ -142,6 +157,15 @@ impl AudioEngine {
         if is_paused {
             new_output.controls.set_paused(true);
         }
+
+        // The decode worker watches this and rebuilds its resampler, so a
+        // device with a different rate does not change playback speed.
+        let device_rate = new_output.device_sample_rate;
+        if device_rate != self.device_rate {
+            self.device_rate = device_rate;
+            self.analyzer = AudioAnalyzer::new(device_rate, ANALYZER_BINS);
+        }
+        self.shared.device_rate.store(device_rate, Ordering::SeqCst);
 
         self.current_device_name = Some(new_output.device_name.clone());
         self.output_controls = Some(Arc::clone(&new_output.controls));
@@ -205,8 +229,14 @@ impl AudioEngine {
         let shared = Arc::clone(&self.shared);
         let running = Arc::clone(&self.running);
 
+        let device_rate = self.shared.device_rate.load(Ordering::SeqCst);
+
         let handle = thread::spawn(move || {
             let mut read_buf = vec![0.0f32; 4096];
+            // Decoded audio comes out at the file's own rate, so it has to be
+            // converted to the output stream's rate before it is queued.
+            let mut resampler = LinearResampler::new(sample_rate, device_rate);
+            let mut resampled = Vec::with_capacity(read_buf.len() * 2);
 
             while running.load(Ordering::Relaxed) && !worker_stop.load(Ordering::Relaxed) {
                 if shared.generation.load(Ordering::Relaxed) != current_gen {
@@ -230,6 +260,7 @@ impl AudioEngine {
                     if shared.generation.load(Ordering::Relaxed) != current_gen || worker_stop.load(Ordering::Relaxed) {
                         break;
                     }
+                    resampler.reset();
                     shared.ring_buffer.lock().unwrap().clear();
                     *shared.current_time_ms.lock().unwrap() = target.as_millis() as u64;
                 }
@@ -268,8 +299,17 @@ impl AudioEngine {
                     break;
                 }
 
+                // Picks up a rate change from switching output device mid-track.
+                let active_rate = shared.device_rate.load(Ordering::Relaxed);
+                if resampler.output_rate() != active_rate {
+                    resampler = LinearResampler::new(sample_rate, active_rate);
+                }
+
+                resampled.clear();
+                resampler.process(&read_buf[..frames_read], &mut resampled);
+
                 let mut ring = shared.ring_buffer.lock().unwrap();
-                ring.extend(&read_buf[..frames_read]);
+                ring.extend(resampled.iter().copied());
                 *shared.current_time_ms.lock().unwrap() = decoder.current_time().as_millis() as u64;
             }
         });

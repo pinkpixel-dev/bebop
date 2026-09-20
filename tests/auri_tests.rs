@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use auri::audio::analysis::AudioAnalyzer;
+use auri::audio::LinearResampler;
 use auri::library::{format_time, Track};
 use auri::lyrics::{Lyrics, LyricsSource, LyricsState};
 use auri::notifications::NotificationManager;
@@ -1515,4 +1516,141 @@ fn test_both_side_boxes_survive_an_80_column_terminal() {
     assert_eq!(art.width, pet.width);
     assert!(layout.player_controls.width >= 30);
     assert_eq!(pet.x + pet.width, 80);
+}
+
+// --- Sample rate conversion ---
+
+/// Build an interleaved stereo sine wave at `freq` Hz.
+fn stereo_sine(freq: f64, rate: u32, frames: usize) -> Vec<f32> {
+    let mut buf = Vec::with_capacity(frames * 2);
+    for n in 0..frames {
+        let t = n as f64 / rate as f64;
+        let s = (2.0 * std::f64::consts::PI * freq * t).sin() as f32;
+        buf.push(s);
+        buf.push(s);
+    }
+    buf
+}
+
+/// Count upward zero crossings, which gives the frequency of a clean sine.
+fn measured_freq(samples: &[f32], rate: u32) -> f64 {
+    let frames: Vec<f32> = samples.chunks_exact(2).map(|c| c[0]).collect();
+    let crossings = frames
+        .windows(2)
+        .filter(|w| w[0] <= 0.0 && w[1] > 0.0)
+        .count();
+    let seconds = frames.len() as f64 / rate as f64;
+    crossings as f64 / seconds
+}
+
+#[test]
+fn test_resampler_passthrough_is_untouched() {
+    let mut resampler = LinearResampler::new(44100, 44100);
+    assert!(resampler.is_passthrough());
+
+    let input = stereo_sine(440.0, 44100, 512);
+    let mut output = Vec::new();
+    resampler.process(&input, &mut output);
+
+    assert_eq!(output, input);
+}
+
+#[test]
+fn test_resampler_output_length_follows_rate_ratio() {
+    let mut resampler = LinearResampler::new(48000, 44100);
+    let input = stereo_sine(440.0, 48000, 4096);
+
+    let mut output = Vec::new();
+    // Several buffers in a row, since position carries across calls.
+    for _ in 0..10 {
+        resampler.process(&input, &mut output);
+    }
+
+    let in_frames = 4096 * 10;
+    let out_frames = output.len() / 2;
+    let expected = (in_frames as f64 * 44100.0 / 48000.0) as usize;
+
+    assert_eq!(output.len() % 2, 0, "output must stay frame-aligned");
+    assert!(
+        out_frames.abs_diff(expected) < 16,
+        "expected about {} frames, got {}",
+        expected,
+        out_frames
+    );
+}
+
+#[test]
+fn test_resampler_preserves_pitch_from_48k_to_44k() {
+    // The bug this guards: 48 kHz audio played through a 44.1 kHz stream
+    // dropped to 0.919x speed, roughly a semitone and a half flat.
+    let mut resampler = LinearResampler::new(48000, 44100);
+    let input = stereo_sine(440.0, 48000, 48000);
+
+    let mut output = Vec::new();
+    for chunk in input.chunks(4096) {
+        resampler.process(chunk, &mut output);
+    }
+
+    let freq = measured_freq(&output, 44100);
+    assert!(
+        (freq - 440.0).abs() < 2.0,
+        "expected about 440 Hz after conversion, measured {:.1} Hz",
+        freq
+    );
+}
+
+#[test]
+fn test_resampler_preserves_pitch_upward() {
+    let mut resampler = LinearResampler::new(22050, 48000);
+    let input = stereo_sine(300.0, 22050, 22050);
+
+    let mut output = Vec::new();
+    for chunk in input.chunks(4096) {
+        resampler.process(chunk, &mut output);
+    }
+
+    let freq = measured_freq(&output, 48000);
+    assert!(
+        (freq - 300.0).abs() < 2.0,
+        "expected about 300 Hz after conversion, measured {:.1} Hz",
+        freq
+    );
+}
+
+#[test]
+fn test_resampler_stays_continuous_across_buffers() {
+    let mut resampler = LinearResampler::new(48000, 44100);
+    let input = stereo_sine(100.0, 48000, 48000);
+
+    let mut output = Vec::new();
+    for chunk in input.chunks(2048) {
+        resampler.process(chunk, &mut output);
+    }
+
+    // A 100 Hz sine at 44.1 kHz moves at most about 0.015 per sample. Buffer
+    // seams would show up as a jump far larger than that.
+    let left: Vec<f32> = output.chunks_exact(2).map(|c| c[0]).collect();
+    let max_step = left
+        .windows(2)
+        .map(|w| (w[1] - w[0]).abs())
+        .fold(0.0f32, f32::max);
+
+    assert!(max_step < 0.05, "found a discontinuity of {}", max_step);
+}
+
+#[test]
+fn test_resampler_reset_clears_carried_frame() {
+    let mut resampler = LinearResampler::new(48000, 44100);
+    let loud = vec![1.0f32; 512];
+    let mut discard = Vec::new();
+    resampler.process(&loud, &mut discard);
+
+    resampler.reset();
+
+    let silence = vec![0.0f32; 512];
+    let mut output = Vec::new();
+    resampler.process(&silence, &mut output);
+
+    let peak = output.iter().fold(0.0f32, |acc, s| acc.max(s.abs()));
+    assert_eq!(peak, 0.0, "stale audio leaked through after reset");
 }

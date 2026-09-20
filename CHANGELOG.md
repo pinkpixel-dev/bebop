@@ -2,6 +2,15 @@
 
 All notable changes to Auri are documented in this file.
 
+## 0.2.2 - September 20, 2026
+
+### 🐛 Fixes
+- Fix playback pitch and speed on files whose sample rate does not match the output stream. The stream was hardcoded to 44.1 kHz while decoded audio was queued at the file's own rate, so a 48 kHz track played at 0.919x speed, about a semitone and a half flat.
+- Add `LinearResampler` and convert decoded audio to the output stream's rate in the decode worker.
+- Open the output stream at 48 kHz when the device supports it, so the common case needs no conversion at all. ALSA plug devices such as `default` report an arbitrary rate as their default while accepting almost any rate, so that reported value is not reliable on its own.
+- Rebuild the resampler when switching to an output device with a different rate, so a device change mid-track no longer shifts pitch.
+- Feed the analyzer the output stream's rate instead of an assumed 44.1 kHz, which puts visualizer frequency bins back on the right frequencies.
+
 ## 0.2.1 - September 20, 2026
 
 ### 🎚️ Visualizers

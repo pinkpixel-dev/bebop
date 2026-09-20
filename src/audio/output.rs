@@ -80,6 +80,38 @@ pub fn list_output_devices(active_device: Option<&str>) -> Vec<AudioDeviceInfo> 
     devices
 }
 
+/// Rate most current hardware and sound servers run at. Picking it avoids a
+/// conversion for the majority of files, which are 48 kHz.
+const PREFERRED_SAMPLE_RATE: u32 = 48000;
+
+/// Pick the rate to open the stream at.
+///
+/// Plug devices such as ALSA's `default` report an arbitrary rate as their
+/// default while accepting almost anything, so the reported value is not a
+/// reliable signal on its own. Prefer 48 kHz whenever the device supports it
+/// and fall back to whatever the device named.
+fn choose_sample_rate(device: &cpal::Device, default_rate: u32) -> u32 {
+    if default_rate == PREFERRED_SAMPLE_RATE {
+        return PREFERRED_SAMPLE_RATE;
+    }
+
+    let supported = device
+        .supported_output_configs()
+        .map(|mut configs| {
+            configs.any(|c| {
+                c.min_sample_rate().0 <= PREFERRED_SAMPLE_RATE
+                    && c.max_sample_rate().0 >= PREFERRED_SAMPLE_RATE
+            })
+        })
+        .unwrap_or(false);
+
+    if supported {
+        PREFERRED_SAMPLE_RATE
+    } else {
+        default_rate
+    }
+}
+
 #[allow(dead_code)]
 pub struct AudioOutput {
     _stream: Stream,
@@ -92,8 +124,10 @@ pub struct AudioOutput {
 impl AudioOutput {
     /// Initialize CPAL stream with a sample provider callback.
     /// The callback receives `(&mut [f32], volume)` where the callback fills `[L, R, L, R...]`.
+    ///
+    /// The stream runs at the device's own default sample rate. Callers are
+    /// responsible for delivering samples at `device_sample_rate`.
     pub fn new<F>(
-        sample_rate: u32,
         preferred_device: Option<&str>,
         mut sample_callback: F,
     ) -> Result<Self, anyhow::Error>
@@ -128,15 +162,15 @@ impl AudioOutput {
             (d, n)
         };
 
-        let _supported_configs_range = device.supported_output_configs()?;
         let supported_config = device
             .default_output_config()
             .map_err(|e| anyhow::anyhow!("Failed to get default output config: {}", e))?;
 
         let channels = supported_config.channels().min(2);
+        let sample_rate = choose_sample_rate(&device, supported_config.sample_rate().0);
         let stream_config = StreamConfig {
             channels,
-            sample_rate: cpal::SampleRate(sample_rate.clamp(22050, 96000)),
+            sample_rate: cpal::SampleRate(sample_rate),
             buffer_size: cpal::BufferSize::Default,
         };
 
