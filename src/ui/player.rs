@@ -42,11 +42,15 @@ pub enum HitAction {
     DeviceSelect(usize),
     DeviceClose,
     TogglePet,
+    PetInteract,
 }
 
 pub struct PlayerView;
 
 impl PlayerView {
+    // The player view draws every pane in the deck, so it needs the state for
+    // all of them handed in.
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         frame: &mut Frame,
         layout: &AppLayout,
@@ -54,6 +58,7 @@ impl PlayerView {
         visualizer: &mut Box<dyn Visualizer>,
         audio_frame: &AudioFrame,
         theme: &Theme,
+        pet_reaction: Option<f32>,
         hit_zones: &mut Vec<HitZone>,
     ) {
         // 1. Header Bar
@@ -72,7 +77,15 @@ impl PlayerView {
 
         // 5. Pet Area
         if let Some(pet_area) = layout.pet {
-            crate::ui::PetView::render(frame, pet_area, player, audio_frame, theme, hit_zones);
+            crate::ui::PetView::render(
+                frame,
+                pet_area,
+                player,
+                audio_frame,
+                theme,
+                pet_reaction,
+                hit_zones,
+            );
         }
 
         // 6. Status Bar

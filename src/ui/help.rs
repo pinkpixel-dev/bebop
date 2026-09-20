@@ -80,6 +80,10 @@ impl HelpOverlay {
                 Span::styled("  x              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
                 Span::styled("Toggle dancing ASCII pet", Style::default().fg(theme.text_muted)),
             ]),
+            Line::from(vec![
+                Span::styled("  b              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
+                Span::styled("Pet the cat (or tap the pet box)", Style::default().fg(theme.text_muted)),
+            ]),
             Line::from(""),
             Line::from(Span::styled("Visuals & Views", Style::default().fg(theme.visualizer_primary).add_modifier(Modifier::BOLD))),
             Line::from(vec![

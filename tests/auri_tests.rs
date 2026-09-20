@@ -1430,7 +1430,7 @@ fn test_pet_view_rendering() {
     terminal
         .draw(|f| {
             let area = Rect::new(0, 0, 30, 12);
-            PetView::render(f, area, &player, &empty_frame, &theme, &mut hit_zones);
+            PetView::render(f, area, &player, &empty_frame, &theme, None, &mut hit_zones);
         })
         .unwrap();
 
@@ -1443,7 +1443,7 @@ fn test_pet_view_rendering() {
     // Sprite frames cycle on wall-clock time, so assert on the note row
     // instead, which depends only on playback state.
     assert!(text.contains("zzZ"), "sleeping pet should show the sleep marker");
-    assert!(hit_zones.iter().any(|z| z.action == HitAction::TogglePet));
+    assert!(hit_zones.iter().any(|z| z.action == HitAction::PetInteract));
 
     // 2. Render in active playing state with audio energy (dancing cat)
     let player_playing = PlayerState {
@@ -1461,7 +1461,15 @@ fn test_pet_view_rendering() {
     terminal
         .draw(|f| {
             let area = Rect::new(0, 0, 30, 12);
-            PetView::render(f, area, &player_playing, &active_frame, &theme, &mut hit_zones);
+            PetView::render(
+                f,
+                area,
+                &player_playing,
+                &active_frame,
+                &theme,
+                None,
+                &mut hit_zones,
+            );
         })
         .unwrap();
 
@@ -1473,7 +1481,86 @@ fn test_pet_view_rendering() {
     assert!(text2.contains("Kyoku"), "pane title missing from the render");
     assert!(text2.contains("\u{266b}"), "playing pet should show music notes");
     assert!(!text2.contains("zzZ"), "playing pet should not show the sleep marker");
-    assert!(hit_zones.iter().any(|z| z.action == HitAction::TogglePet));
+    assert!(hit_zones.iter().any(|z| z.action == HitAction::PetInteract));
+}
+
+#[test]
+fn test_pet_reaction_shows_hearts_and_wakes_the_cat() {
+    use auri::audio::{AudioFrame, PlaybackState};
+    use auri::player::PlayerState;
+    use auri::theme::Theme;
+    use auri::ui::pet::PetView;
+    use ratatui::backend::TestBackend;
+    use ratatui::layout::Rect;
+    use ratatui::Terminal;
+
+    let theme = Theme::vercel_dark();
+    let backend = TestBackend::new(40, 16);
+    let mut terminal = Terminal::new(backend).unwrap();
+    let mut hit_zones = Vec::new();
+
+    // A stopped cat that is being petted should drop the sleep marker and
+    // show hearts instead.
+    let player = PlayerState {
+        playback_state: PlaybackState::Stopped,
+        ..Default::default()
+    };
+    let empty_frame = AudioFrame::default();
+
+    let read_pane = |terminal: &Terminal<TestBackend>| -> String {
+        let buffer = terminal.backend().buffer();
+        (0..12)
+            .flat_map(|y| (0..30).map(move |x| buffer.cell((x, y)).unwrap().symbol().to_string()))
+            .collect()
+    };
+
+    // Early in the reaction: a single heart pops out
+    terminal
+        .draw(|f| {
+            let area = Rect::new(0, 0, 30, 12);
+            PetView::render(
+                f,
+                area,
+                &player,
+                &empty_frame,
+                &theme,
+                Some(0.1),
+                &mut hit_zones,
+            );
+        })
+        .unwrap();
+
+    let text = read_pane(&terminal);
+    assert!(
+        text.contains('\u{2665}'),
+        "a freshly petted cat should show a heart"
+    );
+    assert!(
+        !text.contains("zzZ"),
+        "petting should wake the cat out of the sleep frames"
+    );
+
+    // Later in the reaction: the hearts spread out before fading
+    terminal
+        .draw(|f| {
+            let area = Rect::new(0, 0, 30, 12);
+            PetView::render(
+                f,
+                area,
+                &player,
+                &empty_frame,
+                &theme,
+                Some(0.9),
+                &mut hit_zones,
+            );
+        })
+        .unwrap();
+
+    let late_text = read_pane(&terminal);
+    assert!(
+        late_text.matches('\u{2665}').count() >= 2,
+        "the reaction should spread to more hearts as it fades"
+    );
 }
 
 #[test]

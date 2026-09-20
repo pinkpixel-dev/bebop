@@ -1,6 +1,6 @@
 use std::io::Cursor;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::backend::Backend;
 use ratatui::Terminal;
@@ -14,6 +14,7 @@ use crate::notifications::NotificationManager;
 use crate::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use crate::terminal::{KittyRenderer, TerminalDetector, TerminalGraphics};
 use crate::theme::{extract_palette, ExtractedPalette, Theme};
+use crate::ui::pet::PET_REACTION_MS;
 use crate::ui::player::{HitAction, HitZone, PlayerView};
 use crate::ui::{AppLayout, DeviceOverlay, DeviceState, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, LyricsView, QueueState, QueueView, SearchOverlay};
 use crate::visualizers::bars::BarsVisualizer;
@@ -46,6 +47,8 @@ pub struct App {
     pub fullscreen_visualizer: bool,
     pub show_artwork: bool,
     pub show_pet: bool,
+    /// When the cat was last petted, used to time the happy reaction
+    pub pet_reaction_at: Option<Instant>,
     pub show_help: bool,
     pub notifications_enabled: bool,
     pub mpris_enabled: bool,
@@ -125,6 +128,7 @@ impl App {
             fullscreen_visualizer: false,
             show_artwork: config.ui.artwork,
             show_pet: config.ui.pet,
+            pet_reaction_at: None,
             show_help: false,
             notifications_enabled: config.ui.notifications,
             mpris_enabled: config.ui.mpris,
@@ -484,7 +488,28 @@ impl App {
                 self.show_pet = !self.show_pet;
                 self.save_config();
             }
+            HitAction::PetInteract => self.pet_the_cat(),
         }
+    }
+
+    /// Start the happy reaction. Petting again restarts the timer rather than
+    /// stacking, so holding the key keeps the cat cheerful.
+    pub fn pet_the_cat(&mut self) {
+        if !self.show_pet {
+            return;
+        }
+        self.pet_reaction_at = Some(Instant::now());
+    }
+
+    /// How far through the happy reaction the cat is, 0.0 to 1.0.
+    /// `None` once the reaction has worn off.
+    pub fn pet_reaction_progress(&self) -> Option<f32> {
+        let started = self.pet_reaction_at?;
+        let elapsed = started.elapsed().as_millis();
+        if elapsed >= PET_REACTION_MS {
+            return None;
+        }
+        Some(elapsed as f32 / PET_REACTION_MS as f32)
     }
 
     pub fn toggle_device_selector(&mut self) {
@@ -797,6 +822,7 @@ impl App {
                 self.show_pet = !self.show_pet;
                 self.save_config();
             }
+            KeyCode::Char('b') => self.pet_the_cat(),
             KeyCode::Char('r') => self.player.repeat = self.player.repeat.cycle(),
             KeyCode::Char('s') => self.toggle_shuffle(),
             KeyCode::Char('l') => {
@@ -861,6 +887,7 @@ impl App {
         let is_fullscreen = self.fullscreen_visualizer;
         let show_art = self.show_artwork;
         let show_pet = self.show_pet;
+        let pet_reaction = self.pet_reaction_progress();
 
         terminal.draw(|frame| {
             let area = frame.area();
@@ -900,6 +927,7 @@ impl App {
                             &mut self.visualizer,
                             &audio_frame,
                             &self.theme,
+                            pet_reaction,
                             &mut self.hit_zones,
                         );
                     }

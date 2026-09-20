@@ -2,6 +2,12 @@
 
 All notable changes to Auri are documented in this file.
 
+## 0.3.0 - September 20, 2026
+
+### 🐾 Pet
+- Pet the cat by clicking or tapping the pet pane, or by pressing `b`. It wakes up, bounces on the dancing frames with brighter blush, and floats hearts where the music notes usually sit. The reaction lasts about a second and restarts if you pet it again.
+- Clicking the pet pane now pets the cat instead of hiding it. Hiding still works from the `🐾 [x]` status bar badge and the `x` key.
+
 ## 0.2.2 - September 20, 2026
 
 ### 🐛 Fixes

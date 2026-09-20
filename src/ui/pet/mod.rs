@@ -18,6 +18,9 @@ const MEDIUM_MIN_HEIGHT: u16 = 7;
 const LARGE_MIN_WIDTH: u16 = 16;
 const LARGE_MIN_HEIGHT: u16 = 9;
 
+/// How long the cat stays happy after a pet, in milliseconds
+pub const PET_REACTION_MS: u128 = 1_200;
+
 /// Which sprite tier the current pane can hold
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum PetSize {
@@ -65,6 +68,7 @@ impl PetView {
         player: &PlayerState,
         audio_frame: &AudioFrame,
         theme: &Theme,
+        reaction: Option<f32>,
         hit_zones: &mut Vec<HitZone>,
     ) {
         let block = Block::default()
@@ -80,10 +84,11 @@ impl PetView {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        // Register hit zone on the pet box so clicking or tapping toggles or interacts
+        // Clicking or tapping the pet pane pets the cat. Hiding the pane lives
+        // on the header badge and the `x` key instead.
         hit_zones.push(HitZone {
             rect: area,
-            action: HitAction::TogglePet,
+            action: HitAction::PetInteract,
         });
 
         if inner.height < 4 || inner.width < 10 {
@@ -107,7 +112,15 @@ impl PetView {
             .map(|d| d.as_millis())
             .unwrap_or(0);
 
-        let (pet_lines, note_line) = if is_playing {
+        let (pet_lines, note_line) = if let Some(progress) = reaction {
+            // A pet wakes the cat up no matter what playback is doing, so it
+            // bounces on the awake frames for the length of the reaction.
+            let frame_idx = ((now_ms / 150) % 4) as usize;
+            (
+                Self::happy_frame(frame_idx, theme, size),
+                Self::reaction_hearts(progress, theme),
+            )
+        } else if is_playing {
             // Speed up bounce animation frame rate when bass / energy spikes
             let step_duration = if energy > 0.45 {
                 180
@@ -169,17 +182,28 @@ impl PetView {
     }
 
     /// Resolve color token to concrete theme color
-    fn resolve_color(token: SpriteColor, theme: &Theme, is_sleeping: bool) -> Option<Color> {
+    fn resolve_color(
+        token: SpriteColor,
+        theme: &Theme,
+        is_sleeping: bool,
+        is_happy: bool,
+    ) -> Option<Color> {
         match token {
             SpriteColor::Trans => None,
             SpriteColor::Fur => Some(if is_sleeping { theme.text_dim } else { theme.text }),
             SpriteColor::FurDim => Some(theme.text_muted),
             SpriteColor::EarPink => Some(if is_sleeping {
                 Color::Rgb(200, 120, 140)
+            } else if is_happy {
+                Color::Rgb(255, 176, 190)
             } else {
                 Color::Rgb(251, 146, 160)
             }),
-            SpriteColor::Blush => Some(Color::Rgb(255, 110, 150)),
+            SpriteColor::Blush => Some(if is_happy {
+                Color::Rgb(255, 150, 185)
+            } else {
+                Color::Rgb(255, 110, 150)
+            }),
             SpriteColor::Nose => Some(Color::Rgb(251, 146, 160)),
             SpriteColor::Muzzle => Some(if is_sleeping {
                 Color::Rgb(180, 168, 172)
@@ -230,7 +254,12 @@ impl PetView {
     /// Render a pixel art matrix into terminal rows using ANSI half-blocks.
     /// Two pixel rows collapse into one terminal row, so the grid needs an even
     /// row count.
-    fn render_pixel_grid(grid: &[&str], theme: &Theme, is_sleeping: bool) -> Vec<Line<'static>> {
+    fn render_pixel_grid(
+        grid: &[&str],
+        theme: &Theme,
+        is_sleeping: bool,
+        is_happy: bool,
+    ) -> Vec<Line<'static>> {
         let rows = grid.len() / 2;
         let mut lines = Vec::with_capacity(rows);
 
@@ -244,8 +273,8 @@ impl PetView {
                 let top_token = Self::char_to_token(top_row[col]);
                 let bot_token = Self::char_to_token(bot_row[col]);
 
-                let top_color = Self::resolve_color(top_token, theme, is_sleeping);
-                let bot_color = Self::resolve_color(bot_token, theme, is_sleeping);
+                let top_color = Self::resolve_color(top_token, theme, is_sleeping, is_happy);
+                let bot_color = Self::resolve_color(bot_token, theme, is_sleeping, is_happy);
 
                 spans.push(Self::pixel_pair_to_span(top_color, bot_color, theme.bg));
             }
@@ -259,9 +288,15 @@ impl PetView {
     fn playing_frame(idx: usize, theme: &Theme, size: PetSize) -> Vec<Line<'static>> {
         let idx = idx % 4;
         match size {
-            PetSize::Large => Self::render_pixel_grid(&sprites::LARGE_PLAYING[idx], theme, false),
-            PetSize::Medium => Self::render_pixel_grid(&sprites::MEDIUM_PLAYING[idx], theme, false),
-            PetSize::Small => Self::render_pixel_grid(&sprites::SMALL_PLAYING[idx], theme, false),
+            PetSize::Large => {
+                Self::render_pixel_grid(&sprites::LARGE_PLAYING[idx], theme, false, false)
+            }
+            PetSize::Medium => {
+                Self::render_pixel_grid(&sprites::MEDIUM_PLAYING[idx], theme, false, false)
+            }
+            PetSize::Small => {
+                Self::render_pixel_grid(&sprites::SMALL_PLAYING[idx], theme, false, false)
+            }
         }
     }
 
@@ -291,13 +326,63 @@ impl PetView {
         }
     }
 
+    /// Dancing frames tinted brighter while the cat is being petted
+    fn happy_frame(idx: usize, theme: &Theme, size: PetSize) -> Vec<Line<'static>> {
+        let idx = idx % 4;
+        match size {
+            PetSize::Large => {
+                Self::render_pixel_grid(&sprites::LARGE_PLAYING[idx], theme, false, true)
+            }
+            PetSize::Medium => {
+                Self::render_pixel_grid(&sprites::MEDIUM_PLAYING[idx], theme, false, true)
+            }
+            PetSize::Small => {
+                Self::render_pixel_grid(&sprites::SMALL_PLAYING[idx], theme, false, true)
+            }
+        }
+    }
+
+    /// Hearts that pop out of the cat and fade over the reaction window.
+    /// `progress` runs 0.0 at the moment of the pet to 1.0 when it wears off.
+    fn reaction_hearts(progress: f32, theme: &Theme) -> Line<'static> {
+        let progress = progress.clamp(0.0, 1.0);
+
+        // Fade the hearts from blush pink toward the muted text color so they
+        // dissolve instead of blinking out.
+        let color = if progress < 0.55 {
+            Color::Rgb(255, 130, 170)
+        } else if progress < 0.8 {
+            theme.accent
+        } else {
+            theme.text_muted
+        };
+        let style = Style::default().fg(color).add_modifier(Modifier::BOLD);
+
+        // One heart at the pop, spreading to three as it rises
+        let glyphs = if progress < 0.25 {
+            "\u{2665}"
+        } else if progress < 0.6 {
+            "\u{2661} \u{2665} \u{2661}"
+        } else {
+            "\u{2665} \u{2661} \u{2665}"
+        };
+
+        Line::from(Span::styled(glyphs, style))
+    }
+
     /// Pick one of the two breathing sleep frames at the requested detail level
     fn sleeping_frame(idx: usize, theme: &Theme, size: PetSize) -> Vec<Line<'static>> {
         let idx = idx % 2;
         match size {
-            PetSize::Large => Self::render_pixel_grid(&sprites::LARGE_SLEEPING[idx], theme, true),
-            PetSize::Medium => Self::render_pixel_grid(&sprites::MEDIUM_SLEEPING[idx], theme, true),
-            PetSize::Small => Self::render_pixel_grid(&sprites::SMALL_SLEEPING[idx], theme, true),
+            PetSize::Large => {
+                Self::render_pixel_grid(&sprites::LARGE_SLEEPING[idx], theme, true, false)
+            }
+            PetSize::Medium => {
+                Self::render_pixel_grid(&sprites::MEDIUM_SLEEPING[idx], theme, true, false)
+            }
+            PetSize::Small => {
+                Self::render_pixel_grid(&sprites::SMALL_SLEEPING[idx], theme, true, false)
+            }
         }
     }
 
