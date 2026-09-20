@@ -13,6 +13,8 @@ All notable changes to Auri are documented in this file.
 - Fix the particle field pinning every particle to the top row. Updrafts now come from bass transients above a rolling baseline instead of any bass above a fixed threshold, so a steadily loud mix no longer reads as one continuous impulse.
 - Give particles altitude-dependent drag and a steady lift tied to overall energy, so the field hovers, bounces on beats, rises through loud passages, and settles on the floor in silence.
 - Rescale particle symbol thresholds and the treble sway for the new spectrum range.
+- Fix the waterfall spectrogram painting a solid sheet of color. Cell color now mixes from the background through the theme hue to the peak color as energy rises, instead of being decided by horizontal position alone.
+- Add a display floor and contrast curve to the waterfall so quiet content falls back to the background and bright ridges mark real peaks.
 
 ## 0.2.0 - September 20, 2026
 

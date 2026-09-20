@@ -593,6 +593,72 @@ fn test_waterfall_visualizer() {
 }
 
 #[test]
+fn test_waterfall_intensity_drives_display() {
+    use auri::visualizers::waterfall::WaterfallVisualizer;
+    use auri::visualizers::Visualizer;
+    use auri::audio::frame::AudioFrame;
+    use auri::theme::Theme;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    use ratatui::layout::Rect;
+
+    // Fills one waterfall panel at a given spectrum level and reports how many
+    // cells are painted and how many reached the solid block glyph.
+    fn render_at(level: f32) -> (usize, usize) {
+        let mut viz = WaterfallVisualizer::default();
+        let theme = Theme::vercel_dark();
+        let mut audio = AudioFrame::default();
+        audio.spectrum = vec![level; 64];
+
+        let backend = TestBackend::new(40, 8);
+        let mut terminal = Terminal::new(backend).unwrap();
+        for _ in 0..8 {
+            terminal
+                .draw(|f| {
+                    let area = Rect::new(0, 0, 40, 8);
+                    viz.render(f, area, &audio, &theme);
+                })
+                .unwrap();
+        }
+
+        let buffer = terminal.backend().buffer();
+        let mut painted = 0;
+        let mut solid = 0;
+        for y in 0..8 {
+            for x in 0..40 {
+                let symbol = buffer.cell((x, y)).unwrap().symbol();
+                if symbol != " " {
+                    painted += 1;
+                }
+                if symbol == "\u{2588}" {
+                    solid += 1;
+                }
+            }
+        }
+        (painted, solid)
+    }
+
+    let (quiet_painted, quiet_solid) = render_at(0.20);
+    let (mid_painted, mid_solid) = render_at(0.60);
+    let (loud_painted, loud_solid) = render_at(0.95);
+
+    // Below the display floor the panel stays dark rather than painting a sheet
+    assert_eq!(quiet_painted, 0, "quiet content should leave the panel empty");
+    assert_eq!(quiet_solid, 0);
+
+    // Mid energy paints, but reserves the solid block for real peaks
+    assert!(mid_painted > 0, "mid energy should paint the panel");
+    assert_eq!(mid_solid, 0, "mid energy should not use the solid block glyph");
+
+    // Loud content fills solid, which is the top of the glyph ramp
+    assert!(loud_painted > 0);
+    assert!(
+        loud_solid > mid_solid,
+        "loud content should reach the solid block glyph"
+    );
+}
+
+#[test]
 fn test_particles_visualizer() {
     use auri::visualizers::particles::ParticlesVisualizer;
     use auri::visualizers::Visualizer;
