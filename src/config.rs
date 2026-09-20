@@ -29,11 +29,17 @@ impl Default for PlayerConfig {
     }
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UiConfig {
     pub theme: String,
     pub artwork: bool,
     pub visualizer: String,
+    #[serde(default = "default_true")]
+    pub notifications: bool,
 }
 
 impl Default for UiConfig {
@@ -42,6 +48,7 @@ impl Default for UiConfig {
             theme: "Neon Rainbow".to_string(),
             artwork: true,
             visualizer: "bars".to_string(),
+            notifications: true,
         }
     }
 }

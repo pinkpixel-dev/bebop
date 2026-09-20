@@ -4,6 +4,7 @@ use std::time::Duration;
 use auri::audio::analysis::AudioAnalyzer;
 use auri::library::{format_time, Track};
 use auri::lyrics::{Lyrics, LyricsSource, LyricsState};
+use auri::notifications::NotificationManager;
 use auri::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use auri::theme::Theme;
 use auri::ui::{AppLayout, LibraryState, QueueState};
@@ -898,6 +899,79 @@ fn test_lyrics_companion_discovery() {
     let _ = std::fs::remove_file(audio_file);
     let _ = std::fs::remove_file(lrc_file);
     let _ = std::fs::remove_dir(temp_dir);
+}
+
+#[test]
+fn test_notification_payload_formatting() {
+    let mut track = Track::new("/music/synthwave/sunset.flac");
+    track.title = "Sunset Drive".to_string();
+    track.artist = "Miami Nights 1984".to_string();
+    track.album = "Turbulence".to_string();
+    track.duration = Duration::from_secs(245);
+
+    let (summary, body) = NotificationManager::format_payload(&track);
+    assert_eq!(summary, "Sunset Drive");
+    assert_eq!(body, "Miami Nights 1984 • Turbulence\n04:05");
+
+    // Fallback when album is Unknown Album
+    let mut track_no_album = Track::new("/music/track.mp3");
+    track_no_album.title = "Single Track".to_string();
+    track_no_album.artist = "Solo Artist".to_string();
+    track_no_album.duration = Duration::from_secs(120);
+
+    let (summary2, body2) = NotificationManager::format_payload(&track_no_album);
+    assert_eq!(summary2, "Single Track");
+    assert_eq!(body2, "Solo Artist\n02:00");
+}
+
+#[test]
+fn test_notification_config_roundtrip() {
+    use auri::config::AppConfig;
+
+    let toml_str = r#"
+[player]
+volume = 0.75
+repeat = "one"
+shuffle = true
+
+[ui]
+theme = "Vercel Dark"
+artwork = false
+visualizer = "waveform"
+notifications = false
+
+[library]
+paths = ["/home/user/Music"]
+"#;
+
+    let cfg: AppConfig = toml::from_str(toml_str).expect("deserialize config");
+    assert!(!cfg.ui.notifications);
+    assert_eq!(cfg.player.volume, 0.75);
+
+    // Verify default when notifications field is omitted
+    let toml_default = r#"
+[ui]
+theme = "Ice"
+artwork = true
+visualizer = "bars"
+"#;
+    let cfg_default: AppConfig = toml::from_str(toml_default).expect("deserialize config default");
+    assert!(cfg_default.ui.notifications);
+
+    // Verify serialization roundtrip
+    let serialized = toml::to_string(&cfg).expect("serialize config");
+    assert!(serialized.contains("notifications = false"));
+}
+
+#[test]
+fn test_non_blocking_notification_dispatch() {
+    let mut track = Track::new("/music/song.mp3");
+    track.title = "Non-blocking Test".to_string();
+    track.artist = "Tester".to_string();
+    track.duration = Duration::from_secs(60);
+
+    // Must return immediately without panicking
+    NotificationManager::send_track_notification(&track);
 }
 
 

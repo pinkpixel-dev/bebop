@@ -16,6 +16,7 @@ Auri combines real-time spectrum analysis, embedded album artwork via the Kitty 
 - **Interactive Library & Playlists:** Dual-column file and playlist browser (`2`) to open folders, play albums, enqueue tracks, and manage `.m3u` / `.m3u8` playlists.
 - **Active Queue Management:** Inspect the queue (`3`), reorder, remove items (`d`), clear (`c`), or shuffle (`s`).
 - **Synchronized Lyrics:** Reads companion `.lrc` files and embedded lyric tags with real-time center-scrolling and tap-to-seek (`4` or `l`).
+- **Desktop Notifications:** Displays track title, artist, album, and duration on track changes via desktop notifications.
 - **Full-Screen Visualizer Mode:** Press `f` for a focused visualizer experience with a minimal now-playing footer.
 - **Touch & Mouse Support:** Click or tap progress bars to seek, drag volume, tap transport buttons, switch tabs, or cycle visualizers.
 - **Sleek Minimal Aesthetics:** Charcoal dark palette (`#121214`) with crisp typography and vibrant accent palettes.

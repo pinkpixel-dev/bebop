@@ -13,5 +13,11 @@ All notable changes to Auri are documented in this file.
 - Add manual scroll pausing with auto-scroll re-sync on `s` or `Enter`.
 - Add mini player transport and progress deck within the lyrics screen.
 
+### 🔔 Notifications
+- Add desktop notifications on track change displaying title, artist, album, and duration.
+- Dispatch notifications in detached background threads to ensure zero latency impact on playback and UI.
+- Add configuration toggle `notifications = true/false` under `[ui]` in `config.toml`.
+- Gracefully handle environments without a running D-Bus notification server.
+
 ### 🏷️ Versioning
 - Bump project version to 0.2.0.

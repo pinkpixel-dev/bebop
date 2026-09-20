@@ -9,6 +9,7 @@ use crate::audio::{AudioEngine, PlaybackState};
 use crate::config::AppConfig;
 use crate::library::{MetadataReader, SearchState, Track};
 use crate::lyrics::{Lyrics, LyricsState};
+use crate::notifications::NotificationManager;
 use crate::player::{PlayerState, PlaylistManager, Queue, RepeatMode};
 use crate::terminal::{KittyRenderer, TerminalDetector, TerminalGraphics};
 use crate::theme::{extract_palette, ExtractedPalette, Theme};
@@ -44,6 +45,7 @@ pub struct App {
     pub fullscreen_visualizer: bool,
     pub show_artwork: bool,
     pub show_help: bool,
+    pub notifications_enabled: bool,
     pub search_state: SearchState,
     pub should_quit: bool,
     pub terminal_graphics: TerminalGraphics,
@@ -111,6 +113,7 @@ impl App {
             fullscreen_visualizer: false,
             show_artwork: config.ui.artwork,
             show_help: false,
+            notifications_enabled: config.ui.notifications,
             search_state: SearchState::new(),
             should_quit: false,
             terminal_graphics: graphics,
@@ -189,6 +192,11 @@ impl App {
         // Load synchronized lyrics if available
         let lrc = Lyrics::load_for_track(p);
         self.lyrics_state.set_lyrics(lrc);
+
+        // Send desktop notification if enabled
+        if self.notifications_enabled {
+            NotificationManager::send_track_notification(&track);
+        }
 
         // If track is in queue, sync current_index; otherwise add it
         if let Some(idx) = self.queue.tracks.iter().position(|t| t.path == track.path) {
@@ -770,6 +778,7 @@ impl App {
         cfg.player.shuffle = self.player.shuffle;
         cfg.ui.theme = self.theme.name.to_string();
         cfg.ui.artwork = self.show_artwork;
+        cfg.ui.notifications = self.notifications_enabled;
         cfg.ui.visualizer = match self.visualizer_kind {
             VisualizerKind::Bars => "bars".to_string(),
             VisualizerKind::Mirrored => "mirrored".to_string(),
