@@ -1,6 +1,7 @@
 pub mod bars;
 pub mod mirrored;
 pub mod vu;
+pub mod waterfall;
 pub mod waveform;
 
 use ratatui::layout::Rect;
@@ -26,6 +27,7 @@ pub enum VisualizerKind {
     Mirrored,
     Waveform,
     VuMeter,
+    Waterfall,
 }
 
 impl VisualizerKind {
@@ -34,7 +36,8 @@ impl VisualizerKind {
             Self::Bars => Self::Mirrored,
             Self::Mirrored => Self::Waveform,
             Self::Waveform => Self::VuMeter,
-            Self::VuMeter => Self::Bars,
+            Self::VuMeter => Self::Waterfall,
+            Self::Waterfall => Self::Bars,
         }
     }
 
@@ -45,6 +48,7 @@ impl VisualizerKind {
             Self::Mirrored => "Mirrored Bars",
             Self::Waveform => "Waveform",
             Self::VuMeter => "Stereo VU Meter",
+            Self::Waterfall => "Waterfall Spectrogram",
         }
     }
 }

@@ -16,6 +16,7 @@ use crate::ui::{AppLayout, FullscreenView, HelpOverlay, LibraryPanel, LibrarySta
 use crate::visualizers::bars::BarsVisualizer;
 use crate::visualizers::mirrored::MirroredBarsVisualizer;
 use crate::visualizers::vu::VuMeterVisualizer;
+use crate::visualizers::waterfall::WaterfallVisualizer;
 use crate::visualizers::waveform::WaveformVisualizer;
 use crate::visualizers::{Visualizer, VisualizerKind};
 
@@ -60,6 +61,7 @@ impl App {
             "mirrored" | "mirrored bars" | "mirror" => VisualizerKind::Mirrored,
             "waveform" | "wave" => VisualizerKind::Waveform,
             "vu" | "vumeter" | "vu meter" | "stereo vu" => VisualizerKind::VuMeter,
+            "waterfall" | "spectrogram" => VisualizerKind::Waterfall,
             _ => VisualizerKind::Bars,
         };
         let visualizer: Box<dyn Visualizer> = match visualizer_kind {
@@ -67,6 +69,7 @@ impl App {
             VisualizerKind::Mirrored => Box::new(MirroredBarsVisualizer::default()),
             VisualizerKind::Waveform => Box::new(WaveformVisualizer::default()),
             VisualizerKind::VuMeter => Box::new(VuMeterVisualizer::default()),
+            VisualizerKind::Waterfall => Box::new(WaterfallVisualizer::default()),
         };
 
         let repeat = match config.player.repeat.to_lowercase().as_str() {
@@ -268,6 +271,7 @@ impl App {
             VisualizerKind::Mirrored => Box::new(MirroredBarsVisualizer::default()),
             VisualizerKind::Waveform => Box::new(WaveformVisualizer::default()),
             VisualizerKind::VuMeter => Box::new(VuMeterVisualizer::default()),
+            VisualizerKind::Waterfall => Box::new(WaterfallVisualizer::default()),
         };
     }
 
@@ -680,6 +684,7 @@ impl App {
             VisualizerKind::Mirrored => "mirrored".to_string(),
             VisualizerKind::Waveform => "waveform".to_string(),
             VisualizerKind::VuMeter => "vu".to_string(),
+            VisualizerKind::Waterfall => "waterfall".to_string(),
         };
         let _ = cfg.save();
     }

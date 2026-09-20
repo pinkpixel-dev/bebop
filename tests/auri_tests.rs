@@ -415,7 +415,11 @@ fn test_visualizer_kind_cycle_and_names() {
     assert_eq!(k4.name(), "Stereo VU Meter");
 
     let k5 = k4.next();
-    assert_eq!(k5, VisualizerKind::Bars);
+    assert_eq!(k5, VisualizerKind::Waterfall);
+    assert_eq!(k5.name(), "Waterfall Spectrogram");
+
+    let k6 = k5.next();
+    assert_eq!(k6, VisualizerKind::Bars);
 }
 
 #[test]
@@ -541,3 +545,42 @@ fn test_artwork_palette_extraction_grayscale() {
 
     assert_ne!(palette.primary, palette.secondary);
 }
+
+#[test]
+fn test_waterfall_visualizer() {
+    use auri::visualizers::waterfall::WaterfallVisualizer;
+    use auri::visualizers::Visualizer;
+    use auri::audio::frame::AudioFrame;
+    use auri::theme::Theme;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    use ratatui::layout::Rect;
+
+    let mut viz = WaterfallVisualizer::default();
+    assert_eq!(viz.name(), "Waterfall Spectrogram");
+
+    let theme = Theme::vercel_dark();
+    let mut audio = AudioFrame::default();
+    audio.spectrum = vec![0.7; 64];
+
+    let backend = TestBackend::new(50, 10);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal.draw(|f| {
+        let area = Rect::new(0, 0, 50, 10);
+        viz.render(f, area, &audio, &theme);
+    }).unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let mut non_empty_count = 0;
+    for y in 0..10 {
+        for x in 0..50 {
+            let symbol = buffer.cell((x, y)).unwrap().symbol();
+            if symbol != " " {
+                non_empty_count += 1;
+            }
+        }
+    }
+    assert!(non_empty_count > 0, "Waterfall should render non-empty density characters");
+}
+

@@ -80,7 +80,7 @@ impl HelpOverlay {
             ]),
             Line::from(vec![
                 Span::styled("  v              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
-                Span::styled("Cycle visualizer (Bars / Mirrored / Waveform / VU)", Style::default().fg(theme.text_muted)),
+                Span::styled("Cycle visualizer (Bars / Mirrored / Waveform / VU / Waterfall)", Style::default().fg(theme.text_muted)),
             ]),
             Line::from(vec![
                 Span::styled("  t              ", Style::default().fg(theme.accent).add_modifier(Modifier::BOLD)),
