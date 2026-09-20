@@ -1,5 +1,6 @@
 pub mod bars;
 pub mod mirrored;
+pub mod particles;
 pub mod vu;
 pub mod waterfall;
 pub mod waveform;
@@ -28,6 +29,7 @@ pub enum VisualizerKind {
     Waveform,
     VuMeter,
     Waterfall,
+    Particles,
 }
 
 impl VisualizerKind {
@@ -37,7 +39,8 @@ impl VisualizerKind {
             Self::Mirrored => Self::Waveform,
             Self::Waveform => Self::VuMeter,
             Self::VuMeter => Self::Waterfall,
-            Self::Waterfall => Self::Bars,
+            Self::Waterfall => Self::Particles,
+            Self::Particles => Self::Bars,
         }
     }
 
@@ -49,6 +52,7 @@ impl VisualizerKind {
             Self::Waveform => "Waveform",
             Self::VuMeter => "Stereo VU Meter",
             Self::Waterfall => "Waterfall Spectrogram",
+            Self::Particles => "Particle Field",
         }
     }
 }

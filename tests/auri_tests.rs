@@ -419,7 +419,11 @@ fn test_visualizer_kind_cycle_and_names() {
     assert_eq!(k5.name(), "Waterfall Spectrogram");
 
     let k6 = k5.next();
-    assert_eq!(k6, VisualizerKind::Bars);
+    assert_eq!(k6, VisualizerKind::Particles);
+    assert_eq!(k6.name(), "Particle Field");
+
+    let k7 = k6.next();
+    assert_eq!(k7, VisualizerKind::Bars);
 }
 
 #[test]
@@ -583,4 +587,43 @@ fn test_waterfall_visualizer() {
     }
     assert!(non_empty_count > 0, "Waterfall should render non-empty density characters");
 }
+
+#[test]
+fn test_particles_visualizer() {
+    use auri::visualizers::particles::ParticlesVisualizer;
+    use auri::visualizers::Visualizer;
+    use auri::audio::frame::AudioFrame;
+    use auri::theme::Theme;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+    use ratatui::layout::Rect;
+
+    let mut viz = ParticlesVisualizer::default();
+    assert_eq!(viz.name(), "Particle Field");
+
+    let theme = Theme::neon_rainbow();
+    let mut audio = AudioFrame::default();
+    audio.spectrum = vec![0.8; 64]; // Strong bass impulse
+
+    let backend = TestBackend::new(60, 15);
+    let mut terminal = Terminal::new(backend).unwrap();
+
+    terminal.draw(|f| {
+        let area = Rect::new(0, 0, 60, 15);
+        viz.render(f, area, &audio, &theme);
+    }).unwrap();
+
+    let buffer = terminal.backend().buffer();
+    let mut particle_count = 0;
+    for y in 0..15 {
+        for x in 0..60 {
+            let symbol = buffer.cell((x, y)).unwrap().symbol();
+            if symbol != " " {
+                particle_count += 1;
+            }
+        }
+    }
+    assert!(particle_count > 0, "Particles should render across the buffer");
+}
+
 

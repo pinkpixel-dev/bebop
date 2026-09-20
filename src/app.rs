@@ -15,6 +15,7 @@ use crate::ui::player::{HitAction, HitZone, PlayerView};
 use crate::ui::{AppLayout, FullscreenView, HelpOverlay, LibraryPanel, LibraryState, LibraryView, QueueState, QueueView, SearchOverlay};
 use crate::visualizers::bars::BarsVisualizer;
 use crate::visualizers::mirrored::MirroredBarsVisualizer;
+use crate::visualizers::particles::ParticlesVisualizer;
 use crate::visualizers::vu::VuMeterVisualizer;
 use crate::visualizers::waterfall::WaterfallVisualizer;
 use crate::visualizers::waveform::WaveformVisualizer;
@@ -62,6 +63,7 @@ impl App {
             "waveform" | "wave" => VisualizerKind::Waveform,
             "vu" | "vumeter" | "vu meter" | "stereo vu" => VisualizerKind::VuMeter,
             "waterfall" | "spectrogram" => VisualizerKind::Waterfall,
+            "particles" | "particle" => VisualizerKind::Particles,
             _ => VisualizerKind::Bars,
         };
         let visualizer: Box<dyn Visualizer> = match visualizer_kind {
@@ -70,6 +72,7 @@ impl App {
             VisualizerKind::Waveform => Box::new(WaveformVisualizer::default()),
             VisualizerKind::VuMeter => Box::new(VuMeterVisualizer::default()),
             VisualizerKind::Waterfall => Box::new(WaterfallVisualizer::default()),
+            VisualizerKind::Particles => Box::new(ParticlesVisualizer::default()),
         };
 
         let repeat = match config.player.repeat.to_lowercase().as_str() {
@@ -272,6 +275,7 @@ impl App {
             VisualizerKind::Waveform => Box::new(WaveformVisualizer::default()),
             VisualizerKind::VuMeter => Box::new(VuMeterVisualizer::default()),
             VisualizerKind::Waterfall => Box::new(WaterfallVisualizer::default()),
+            VisualizerKind::Particles => Box::new(ParticlesVisualizer::default()),
         };
     }
 
@@ -685,6 +689,7 @@ impl App {
             VisualizerKind::Waveform => "waveform".to_string(),
             VisualizerKind::VuMeter => "vu".to_string(),
             VisualizerKind::Waterfall => "waterfall".to_string(),
+            VisualizerKind::Particles => "particles".to_string(),
         };
         let _ = cfg.save();
     }
